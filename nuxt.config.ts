@@ -4,6 +4,10 @@ export default defineNuxtConfig({
   modules: ['@unocss/nuxt', '@nuxt/icon'],
   css: ['@unocss/reset/tailwind.css', '~/assets/css/main.css'],
   typescript: { strict: true },
+  nitro: {
+    // Avoid broken runtime imports to pnpm's @iconify/utils paths in the Node server bundle.
+    externals: { inline: ['@iconify/utils'] },
+  },
   runtimeConfig: { databaseUrl: '', githubTokens: '' },
   routeRules: {
     '/projects/**': { headers: { 'Cache-Control': 'private, no-store' } },
