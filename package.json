@@ -2,16 +2,39 @@
   "name": "pishro",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
+  },
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
-    "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "lint": "oxlint --deny-warnings",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "nuxt": "^4.6.0",
+    "@nuxt/icon": "^2.5.1",
+    "drizzle-orm": "^0.45.4",
+    "mysql2": "^3.24.5",
+    "nuxt": "^4.6.1",
     "vue": "^3.5.43",
-    "vue-router": "^5.3.1"
+    "vue-router": "^5.4.0"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.142",
+    "@types/node": "^26.6.5",
+    "@unocss/nuxt": "^66.10.5",
+    "@unocss/reset": "^66.10.5",
+    "drizzle-kit": "^0.31.11",
+    "oxfmt": "^0.72.0",
+    "oxlint": "^1.87.0",
+    "typescript": "~6.0.3",
+    "unocss": "^66.10.5",
+    "vue-tsc": "^3.3.13"
   }
 }
