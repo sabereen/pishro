@@ -20,10 +20,10 @@ export type PokerSession = JsonValue<InferSelectModel<typeof schema.pokerSession
 export type PokerSnapshot = {
   session: PokerSession
   me: { id: string; facilitator: boolean; vote: string | null }
-  participants: { id: string; name: string; joined: boolean; online: boolean; hasVoted: boolean; vote: string | null }[]
+  participants: { id: string; name: string; joined: boolean; online: boolean; ignored: boolean; hasVoted: boolean; vote: string | null }[]
   tasks: {
     id: string; taskId: string; title: string; position: number; status: 'pending' | 'active' | 'estimated'
-    finalPoint: number | null; round: number
+    finalPoint: number | null; round: number; ignoredUserIds: string[]; revoteRequired: boolean
     votes: { userId: string; name: string; value: string; round: number }[]
     history: { point: number; previousPoint: number | null; reason: string; date: string }[]
   }[]

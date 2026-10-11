@@ -130,6 +130,8 @@ export const pokerSessionTasks = mysqlTable('poker_session_tasks', {
   projectId: varchar('project_id', { length: 36 }).notNull(), taskId: varchar('task_id', { length: 36 }).notNull(),
   position: int('position', { unsigned: true }).notNull(),
   status: mysqlEnum('status', ['pending', 'active', 'estimated']).notNull().default('pending'),
+  ignoredUserIds: json('ignored_user_ids').$type<string[]>().notNull(),
+  revoteRequired: int('revote_required', { unsigned: true }).notNull().default(0),
   finalPoint: int('final_point', { unsigned: true }), round: int('round', { unsigned: true }).notNull().default(1),
 }, (table) => [
   uniqueIndex('poker_task_unique').on(table.sessionId, table.taskId),

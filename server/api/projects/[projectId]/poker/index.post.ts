@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
       if (!sprint) throw createError({ statusCode: 400, message: 'اسپرینت متعلق به این پروژه نیست.' })
     }
     await tx.insert(pokerSessions).values({ id, projectId, sprintId, name, facilitatorId: user.id, cards: project.settings.cards })
-    await tx.insert(pokerSessionTasks).values(taskIds.map((taskId, position) => ({ id: randomUUID(), sessionId: id, projectId, taskId, position, status: position === 0 ? 'active' as const : 'pending' as const })))
+    await tx.insert(pokerSessionTasks).values(taskIds.map((taskId, position) => ({ id: randomUUID(), sessionId: id, projectId, taskId, position, ignoredUserIds: [], status: position === 0 ? 'active' as const : 'pending' as const })))
     await tx.insert(pokerParticipants).values(participantIds.map((userId) => ({ id: randomUUID(), sessionId: id, userId })))
   })
   return { id }

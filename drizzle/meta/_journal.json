@@ -15,6 +15,13 @@
       "when": 1791691765758,
       "tag": "0001_scrum_mvp",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1791691765759,
+      "tag": "0002_poker_round_completion",
+      "breakpoints": true
     }
   ]
 }
