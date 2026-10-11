@@ -1,4 +1,4 @@
-import type { PokerSnapshot } from '../../shared/models'
+import type { PokerSnapshot } from '#shared/models'
 
 export function usePlanningSession(projectId: string, sessionId: string, initial: PokerSnapshot | null) {
   const snapshot = ref(initial)

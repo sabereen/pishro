@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { Task } from '../../../../shared/models'
-import { pointValues, statusLabels } from '../../../../shared/scrum'
+import type { Task } from '#shared/models'
+import { pointValues, statusLabels } from '#shared/scrum'
 
 definePageMeta({ layout: 'project', middleware: 'auth', key: (route) => route.path })
 const { data: project } = await useProject()

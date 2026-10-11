@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { ProjectOverview } from '../../shared/models'
-import type { TaskStatus } from '../../shared/scrum'
-import { statusLabels, taskStatuses } from '../../shared/scrum'
+import type { ProjectOverview } from '#shared/models'
+import type { TaskStatus } from '#shared/scrum'
+import { statusLabels, taskStatuses } from '#shared/scrum'
 
 const props = defineProps<{ project: ProjectOverview; sprintId: string }>()
 const emit = defineEmits<{ open: [id: string] }>()

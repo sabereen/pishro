@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { PokerSnapshot } from '../../../../../shared/models'
-import { cardLabel, pokerLabels } from '../../../../../shared/scrum'
+import type { PokerSnapshot } from '#shared/models'
+import { cardLabel, pokerLabels } from '#shared/scrum'
 
 definePageMeta({ layout: 'project', middleware: 'auth', key: (route) => route.path })
 const route = useRoute()

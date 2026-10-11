@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { pokerLabels } from '../../../../../shared/scrum'
-import { persianDate } from '../../../../../shared/calendar'
+import { pokerLabels } from '#shared/scrum'
+import { persianDate } from '#shared/calendar'
 
 definePageMeta({ layout: 'project', middleware: 'auth', key: (route) => route.path })
 const { data: project } = await useProject()

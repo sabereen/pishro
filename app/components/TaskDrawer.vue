@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { ProjectOverview } from '../../shared/models'
-import type { TaskStatus } from '../../shared/scrum'
-import { pointValues, statusLabels, taskStatuses } from '../../shared/scrum'
-import { persianDate } from '../../shared/calendar'
+import type { ProjectOverview } from '#shared/models'
+import type { TaskStatus } from '#shared/scrum'
+import { pointValues, statusLabels, taskStatuses } from '#shared/scrum'
+import { persianDate } from '#shared/calendar'
 
 const props = defineProps<{ project: ProjectOverview; taskId: string | null }>()
 const open = defineModel<boolean>({ default: false })

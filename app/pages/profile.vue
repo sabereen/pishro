@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PublicUser } from '../../shared/scrum'
+import type { PublicUser } from '#shared/scrum'
 
 definePageMeta({ middleware: 'auth' })
 const { user } = useAuth()
