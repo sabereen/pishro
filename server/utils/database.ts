@@ -6,6 +6,8 @@ import * as schema from '../database/schema'
 let database: ReturnType<typeof drizzle<typeof schema>> | undefined
 let pool: Pool | undefined
 
+export type DatabaseTransaction = Parameters<Parameters<ReturnType<typeof useDatabase>['transaction']>[0]>[0]
+
 export function useDatabase() {
   if (database) return database
 

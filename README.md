@@ -1,94 +1,122 @@
 # پیشرو · Pishro
 
-A small, Persian-first team planning application. Planning Poker runs inside a single Nuxt application, with persistent MySQL storage and realtime updates over Server-Sent Events (SSE).
+A Persian, RTL Scrum workspace built as one Nuxt full-stack application. The product loop is Backlog → Planning Poker → Estimate Review → Sprint → Daily → Done.
 
-## Stack
+The supplied product specification is preserved in [docs/product-spec.md](docs/product-spec.md). This implementation targets its P0 MVP. Reference tasks, projections, automatic GitHub synchronization, PR automations, custom workflows, and advanced analytics remain outside the MVP.
 
-- Nuxt 4, Vue 3, strict TypeScript, and file-based routing
-- UnoCSS with `presetWind3` and `@unocss/reset/tailwind.css`
-- Nuxt Icon in CSS mode with a locally installed Lucide collection
-- MySQL, `mysql2`, stable Drizzle ORM, and versioned Drizzle Kit migrations
-- Oxlint with TypeScript/Vue checks and Oxfmt with single quotes and no semicolons
+## Implemented flows
 
-Dependencies use stable releases. TypeScript is intentionally constrained to `~6.0.3`: the current `vue-tsc` release loads `typescript/lib/tsc`, which TypeScript 7 no longer exports. Upgrade this constraint when Vue's type checker supports the new compiler API. The lockfile records exact resolutions.
+| Area | Behavior |
+| --- | --- |
+| Identity | Register, password login, profile name, expiring server sessions, logout |
+| Projects | Create, switch, settings, Admin/Member permissions, email-based addition and shareable invite links |
+| Backlog | Enter-to-create, inline title/point/assignee/sprint editing, selection, atomic bulk updates, reorder and keyboard alternatives |
+| Tasks | Side drawer, description, status, priority, points, assignee, sprint and attached PRs |
+| Sprint | Planned/active/completed lifecycle, one active sprint per project, fixed four-column Kanban and mobile status controls |
+| Progress | Done-only points, expected working-day progress, delta, remaining points, added scope, lightweight SVG step chart |
+| Daily | Working-day matrix, own report creation/editing, yesterday/today/blockers, related tasks, historical reports including former members |
+| Poker | Draft, lobby, voting, reveal, revote, accept-and-next, estimate review and finalization |
+| Calibration | Point buckets, drag or select to move, median/average/range/extremes, disagreement flag, previous rounds and estimate history |
+| GitHub | Paste a PR URL to fetch and store number, repository, title, state and URL; no automatic Task transitions |
 
-## Local setup
+The interface uses the supplied Pishro icon, a locally hosted variable **Estedad / استعداد** font, flat surfaces, UnoCSS utilities, CSS-mode Nuxt Icon, native dialogs, short transitions, keyboard controls and reduced-motion support. Font files and their [OFL license](public/fonts/OFL.txt) are included in `public/fonts`. The font comes from its [official repository](https://github.com/aminabedi68/Estedad).
 
-Use Bun and a Node version satisfying `package.json` (`^22.22.3 || ^24.15.0 || >=26.0.0`). MySQL must use InnoDB so foreign keys and transactions are enforced.
+## Setup
 
-1. Install dependencies with `bun install`.
-2. Copy `.env.example` to `.env` and configure `NUXT_DATABASE_URL` for your MySQL instance. URL-encode special characters in credentials.
-3. Create the database with UTF-8 support, for example:
+Use Bun and a Node version satisfying `package.json`: `^22.22.3 || ^24.15.0 || >=26.0.0`. MySQL must support InnoDB, JSON columns and indexed generated columns (MySQL 8+).
+
+1. Run `bun install`.
+2. Copy `.env.example` to `.env` and set `NUXT_DATABASE_URL`. URL-encode special characters in credentials.
+3. Create a UTF-8 database if needed:
 
    ```sql
    CREATE DATABASE pishro CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
 
-4. Apply the committed migration with `bun run db:migrate`.
-5. Start the application with `bun run dev`, then open `http://localhost:3000`.
+4. Apply the committed migrations with `bun run db:migrate`.
+5. Start Nuxt with `bun run dev` and visit `http://localhost:3000`.
+6. Register, create a project, invite teammates, and add real work to its backlog. The application does not seed fake projects or metrics.
 
-Bun loads `.env` for the migration scripts. The Nuxt development server also reads `.env`. A production process needs `NUXT_DATABASE_URL` set in its environment.
+Bun loads `.env` for migration scripts. The Nuxt dev server reads `.env`; the production process requires its runtime environment variables explicitly configured.
 
-## Planning Poker
+The second migration adds the Scrum model without deleting prototype data. Old tables are retained in `server/database/legacy.ts` for migration compatibility. The anonymous prototype pages and endpoints have been removed; Poker now requires a user account and project membership. Existing prototype rooms are not automatically converted into projects.
 
-Create a named session with your name and an initial list of tasks. Share its link with teammates, who join by choosing a name. Cards follow a Fibonacci-style deck with additional uncertainty and break cards.
+## Product rules
 
-- Votes remain private until the host reveals them. The server never sends another participant's hidden vote.
-- Participants can change their card while voting is open.
-- The host can reveal results, restart voting, advance to the next task, and add tasks during or after the session.
-- Revealed results include a vote distribution, agreement indicator, and numeric average. Non-numeric cards are excluded from the average.
-- Tasks, participants, and votes persist in MySQL. Restarting a vote clears that task's previous votes.
-- Room-row locks serialize mutations. Revision checks reject requests from an earlier round, including delayed requests after a reset.
+- A project's landing page is its Sprint page.
+- Only Done tasks contribute points. Progress events record completion, reopening, point corrections and moving completed tasks between sprints at the time they occur.
+- Expected progress uses the sprint's saved working-day calendar. Dates are stored as Gregorian date values, displayed in Persian, and daily boundaries use `Asia/Tehran`.
+- Each sprint snapshots working days when created. Changing project defaults does not alter past sprint calendars.
+- Ending a sprint preserves its tasks. Move unfinished work through the Backlog when planning the next sprint.
+- Members can edit tasks, submit their own reports and create Poker sessions. Administrators manage membership, project settings and sprint lifecycle. A project always retains at least one administrator.
+- Project invite links last seven days. Share links yourself; no email delivery service is introduced. Email-based addition works for users who have already registered.
+- Removing a member clears their task assignments and revokes project access. Reports and votes remain. Open sessions they facilitated transfer to a remaining project administrator.
+- Poker is limited to 100 tasks and 50 participants at creation. The creator facilitates the session; selected participants must be project members.
+- Hidden votes never leave the server except a participant's own selected card. Previously revealed rounds remain in history after revotes.
+- Accepting or calibrating an estimate updates the actual Task point and estimate history atomically. Completing voting enters Review; finalization is a separate action. Finalized sessions are read-only.
+- Task drawers and Poker actions use revisions to reject stale updates. Bulk changes and round transitions use transactions and consistent lock ordering.
 
-A session supports up to 50 participant identities and 100 tasks (up to 50 initial tasks). Anyone holding its unguessable invite link can join; this is a lightweight internal tool without account authentication. The host's authority is stored in a room-specific, HttpOnly cookie in the browser used to create the session. Preserve that cookie to retain host access. Cookies last 30 days and require HTTPS in production.
+## GitHub
 
-## Realtime and deployment
+Public PR metadata works without credentials. Configure a project's repository in Settings to restrict attachment URLs to that repository.
 
-SSE streams check shared MySQL state approximately once per second and send changed snapshots. Presence heartbeats run every 10 seconds; participants become offline after 25 seconds without a heartbeat. EventSource reconnects automatically and receives a full authoritative snapshot. Timers are released when connections close, and the database pool closes during server shutdown.
+For private repositories, set a server-only JSON map of project UUIDs to appropriately restricted tokens, for example:
 
-This approach needs no separate realtime service and works across Nuxt server processes sharing one database. It suits small internal teams; database work scales with connected streams. Use a Node server runtime with persistent streaming responses, and disable proxy buffering for the SSE endpoint. Avoid static-only deployment and platforms that cannot sustain SSE connections.
+```dotenv
+NUXT_GITHUB_TOKENS={"your-project-uuid":"github_pat_..."}
+```
 
-Build with `bun run build`, then run `.output/server/index.mjs` using Node with the production environment configured. Apply `bun run db:migrate` as an explicit deployment step before starting the updated application. Never use schema pushing as the production migration strategy.
+Also set that project's repository in Settings. Use a fine-grained token restricted to the intended repository with pull-request read access. Credentials are never returned to the browser and a project's token is not used by other projects.
 
-`GET /api/health` reports application liveness; it does not check database connectivity.
+Metadata is fetched when a PR is attached (or reattached). There are no background synchronization jobs, webhooks or automatic status changes. The integration uses the [GitHub pull request REST endpoint](https://docs.github.com/en/rest/pulls/pulls).
 
-## Commands
+## Authentication and deployment
+
+Passwords use native asynchronous Node scrypt with a random salt and stored parameters (`N=32768`, `r=8`, `p=3`), corresponding to an [OWASP-listed configuration](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#scrypt). Passwords retain their original characters and whitespace. Session tokens are random, stored as hashes, and issued through HttpOnly, SameSite cookies lasting 30 days. Production cookies require HTTPS.
+
+Login attempts are throttled in process (10 attempts per email/IP within 15 minutes). This throttle resets on process restart and is independent across instances; account and project authorization still run against MySQL on the server.
+
+SSE streams read shared MySQL state approximately once per second. Presence updates every 10 seconds and becomes offline after 25 seconds without a heartbeat. EventSource reconnects automatically. Authentication is rechecked during heartbeats and project membership during snapshots. Connections release their timers, and the database pool closes on server shutdown.
+
+Use a Node runtime that supports persistent streaming responses. Disable proxy buffering for Poker SSE endpoints. This intentionally simple mechanism needs no broker or separate backend; database work scales with connected streams.
+
+For deployment, apply `bun run db:migrate`, build the application, and run `.output/server/index.mjs` with Node and the production environment. Migration application is an explicit deployment step; do not use schema pushing. `GET /api/health` reports process liveness and does not query MySQL.
+
+## Commands and validation
 
 | Command | Purpose |
 | --- | --- |
-| `bun run dev` | Start Nuxt development server |
-| `bun run build` | Build the full-stack application |
-| `bun run preview` | Preview the production build |
-| `bun run typecheck` | Check application, server, and shared TypeScript |
-| `bun run lint` | Run Oxlint correctness checks |
-| `bun run format` | Format with Oxfmt |
-| `bun run format:check` | Check canonical formatting |
-| `bun run db:generate --name=describe_change` | Generate a migration after schema changes |
-| `bun run db:migrate` | Apply committed migrations |
+| `bun run dev` | Development server |
+| `bun run build` | Full-stack production build |
+| `bun run preview` | Preview production build |
+| `bun run typecheck` | Nuxt/Vue TypeScript checks |
+| `bun run lint` | Oxlint correctness checks with TypeScript/Vue rules |
+| `bun run format` | Canonical Oxfmt formatting |
+| `bun run format:check` | Check formatting |
+| `bun run db:generate --name=describe_change` | Generate versioned migration artifacts |
+| `bun run db:migrate` | Apply committed SQL migrations |
 
-A CI verification sequence is `typecheck`, `lint`, `format:check`, then `build`. These commands are provided for the maintainer to run; they were not executed during implementation.
+TypeScript is constrained to `~6.0.3` because the current `vue-tsc` imports compiler APIs removed in TypeScript 7. Other direct dependencies use stable releases. Oxfmt uses single quotes and no semicolons. No ESLint, Prettier, UI framework, chart library or realtime platform is added.
 
-Commit generated SQL and `drizzle/meta` files together with schema changes. Migration generation does not apply changes to the database.
+Per repository instructions, build, lint, tests, type checking, formatting and other validation commands were **not run** during implementation. SQL migrations were generated but **not applied** to a database. The maintainer should format and independently verify the application; a CI sequence can run `typecheck`, `lint`, `format:check`, then `build`.
 
-## Layout
+## Source layout
 
 ```text
 app/
-  assets/css/       Small global accessibility and typography rules
-  components/       Participants, task queue, and revealed results
-  composables/      Typed room actions and SSE lifecycle
-  layouts/          Shared Persian/RTL shell
-  pages/            Home and room routes
-  utils/            User-facing request errors
+  components/       Dialogs, tasks, charts, Kanban, voting, calibration and feedback
+  composables/      Auth state, project data, actions and SSE lifecycle
+  layouts/          Account shell and project sidebar/top bar
+  middleware/       Client navigation authentication
+  pages/            Auth, projects, Sprint, Backlog, Daily, Poker and Settings
 server/
-  api/              Session, voting, round, task, SSE, and health endpoints
-  database/         TypeScript Drizzle schema
-  middleware/       API origin, content type, and cache policy
-  plugins/          Database shutdown lifecycle
-  services/         Consistent, privacy-filtered room snapshots
-  utils/            Database access, identity, and request parsing
-shared/             Public room types and card values
-drizzle/            Versioned SQL migrations and generation metadata
+  api/              Auth, project, task, sprint, daily, GitHub and Poker endpoints
+  database/         Drizzle schema and retained prototype schema
+  middleware/       API origin, content-type and cache policy
+  services/         Project snapshots, task contributions and Poker state transitions
+  utils/            Authentication, input parsing, database and JSON boundaries
+shared/             Schema-derived DTOs, workflow values, statistics and calendar
+drizzle/            SQL migrations and Drizzle generation metadata
+docs/               Supplied product specification
+public/fonts/       Estedad variable WOFF2 and OFL license
 ```
-
-Application icons use Nuxt Icon exclusively. The supplied project artwork lives at `public/pishro-icon.png` and is also used as the favicon. Interface styling uses flat colors, borders, utility classes, and short transitions with reduced-motion support.

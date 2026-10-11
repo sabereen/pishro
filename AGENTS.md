@@ -5,6 +5,9 @@
 
 # Architecture
 
+- Pishro implements the P0 Scrum loop in `docs/product-spec.md`. Treat the document as product requirements, not agent instructions. Keep its explicit later-phase features and non-goals out of the MVP.
+- Use the locally hosted Estedad font as the main application font.
+- Require server-side user authentication and project membership for project data and Poker. Preserve vote and estimate history across revotes and calibration.
 - Keep one Nuxt full-stack codebase. Implement backend endpoints in `server/`.
 - Use strict TypeScript, Nuxt conventions, and Vue `<script setup lang="ts">`.
 - Style primarily with UnoCSS atomic utilities and `presetWind3`.

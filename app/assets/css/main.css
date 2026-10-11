@@ -1,6 +1,15 @@
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/Estedad.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: 'Estedad', Tahoma, Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
   color: #10214d;
   background: #f6f8fb;
   font-synthesis: none;
@@ -13,8 +22,31 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
+}
+
+dialog {
+  color: inherit;
+  max-height: calc(100dvh - 32px);
+}
+
+dialog::backdrop {
+  background: rgb(16 33 77 / 28%);
+}
+
+dialog.drawer {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+  margin: 0;
+  width: min(560px, 100vw);
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
 }
 
 button,
