@@ -1,23 +1,24 @@
 # پیشرو · Pishro
 
-A Persian, RTL Scrum workspace built as one Nuxt full-stack application. The product loop is Backlog → Planning Poker → Estimate Review → Sprint → Daily → Done.
+A Persian, RTL Scrum workspace built as one Nuxt full-stack application. The product loop is Backlog → Planning Poker → Estimate Review → Task Picking → Sprint → Daily → Done.
 
 The supplied product specification is preserved in [docs/product-spec.md](docs/product-spec.md). This implementation targets its P0 MVP. Reference tasks, projections, automatic GitHub synchronization, PR automations, custom workflows, and advanced analytics remain outside the MVP.
 
 ## Implemented flows
 
-| Area | Behavior |
-| --- | --- |
-| Identity | Register, password login, profile name, expiring server sessions, logout |
-| Projects | Create, switch, settings, Admin/Member permissions, email-based addition and shareable invite links |
-| Backlog | Enter-to-create, inline title/point/assignee/sprint editing, selection, atomic bulk updates, reorder and keyboard alternatives |
-| Tasks | Side drawer, description, status, priority, points, assignee, sprint and attached PRs |
-| Sprint | Planned/active/completed lifecycle, one active sprint per project, fixed four-column Kanban and mobile status controls |
-| Progress | Done-only points, expected working-day progress, delta, remaining points, added scope, lightweight SVG step chart |
-| Daily | Working-day matrix, own report creation/editing, yesterday/today/blockers, related tasks, historical reports including former members |
-| Poker | Draft, lobby, voting, reveal, revote, accept-and-next, estimate review and finalization |
-| Calibration | Point buckets, drag or select to move, median/average/range/extremes, disagreement flag, previous rounds and estimate history |
-| GitHub | Paste a PR URL to fetch and store number, repository, title, state and URL; no automatic Task transitions |
+| Area         | Behavior                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity     | Register, password login, profile name, expiring server sessions, logout                                                              |
+| Projects     | Create, switch, settings, Admin/Member permissions, email-based addition and shareable invite links                                   |
+| Backlog      | Enter-to-create, inline title/point/assignee/sprint editing, selection, atomic bulk updates, reorder and keyboard alternatives        |
+| Tasks        | Side drawer, description, status, priority, points, assignee, sprint and attached PRs                                                 |
+| Sprint       | Planned/active/completed lifecycle, one active sprint per project, fixed four-column Kanban and mobile status controls                |
+| Progress     | Done-only points, expected working-day progress, delta, remaining points, added scope, lightweight SVG step chart                     |
+| Daily        | Working-day matrix, own report creation/editing, yesterday/today/blockers, related tasks, historical reports including former members |
+| Poker        | Draft, lobby, voting, reveal, revote, accept-and-next, estimate review and finalization                                               |
+| Task Picking | Live sprint board, self-only Pick/Release, member task/point totals, atomic conflicts, unpicked warning before start                  |
+| Calibration  | Point buckets, drag or select to move, median/average/range/extremes, disagreement flag, previous rounds and estimate history         |
+| GitHub       | Paste a PR URL to fetch and store number, repository, title, state and URL; no automatic Task transitions                             |
 
 The interface uses the supplied Pishro icon, a locally hosted variable **Estedad / استعداد** font, flat surfaces, UnoCSS utilities, CSS-mode Nuxt Icon, native dialogs, short transitions, keyboard controls and reduced-motion support. Font files and their [OFL license](public/fonts/OFL.txt) are included in `public/fonts`. The font comes from its [official repository](https://github.com/aminabedi68/Estedad).
 
@@ -54,6 +55,7 @@ The second migration adds the Scrum model without deleting prototype data. Old t
 - Poker is limited to 100 tasks and 50 participants at creation. The creator facilitates the session; selected participants must be project members.
 - Hidden votes never leave the server except a participant's own selected card. Previously revealed rounds remain in history after revotes.
 - Accepting or calibrating an estimate updates the actual Task point and estimate history atomically. Completing voting enters Review; finalization is a separate action. Finalized sessions are read-only.
+- Planned sprint tasks can only be picked or released by the member choosing their own work. Task Picking uses the same MySQL-backed SSE snapshots as Poker, including membership and authentication rechecks. Concurrent picks serialize under the project/task locks; the losing request receives the winner’s name. Starting a sprint closes picking and remains allowed with unpicked tasks.
 - Task drawers and Poker actions use revisions to reject stale updates. Bulk changes and round transitions use transactions and consistent lock ordering.
 
 ## GitHub
@@ -78,27 +80,29 @@ Login attempts are throttled in process (10 attempts per email/IP within 15 minu
 
 SSE streams read shared MySQL state approximately once per second. Presence updates every 10 seconds and becomes offline after 25 seconds without a heartbeat. EventSource reconnects automatically. Authentication is rechecked during heartbeats and project membership during snapshots. Connections release their timers, and the database pool closes on server shutdown.
 
-Use a Node runtime that supports persistent streaming responses. Disable proxy buffering for Poker SSE endpoints. This intentionally simple mechanism needs no broker or separate backend; database work scales with connected streams.
+Use a Node runtime that supports persistent streaming responses. Disable proxy buffering for Poker and Task Picking SSE endpoints. This intentionally simple mechanism needs no broker or separate backend; database work scales with connected streams.
 
 For deployment, apply `bun run db:migrate`, build the application, and run `.output/server/index.mjs` with Node and the production environment. Migration application is an explicit deployment step; do not use schema pushing. `GET /api/health` reports process liveness and does not query MySQL.
 
 ## Commands and validation
 
-| Command | Purpose |
-| --- | --- |
-| `bun run dev` | Development server |
-| `bun run build` | Full-stack production build |
-| `bun run preview` | Preview production build |
-| `bun run typecheck` | Nuxt/Vue TypeScript checks |
-| `bun run lint` | Oxlint correctness checks with TypeScript/Vue rules |
-| `bun run format` | Canonical Oxfmt formatting |
-| `bun run format:check` | Check formatting |
-| `bun run db:generate --name=describe_change` | Generate versioned migration artifacts |
-| `bun run db:migrate` | Apply committed SQL migrations |
+| Command                                      | Purpose                                             |
+| -------------------------------------------- | --------------------------------------------------- |
+| `bun run dev`                                | Development server                                  |
+| `bun run build`                              | Full-stack production build                         |
+| `bun run preview`                            | Preview production build                            |
+| `bun run typecheck`                          | Nuxt/Vue TypeScript checks                          |
+| `bun run lint`                               | Oxlint correctness checks with TypeScript/Vue rules |
+| `bun run format`                             | Canonical Oxfmt formatting                          |
+| `bun run format:check`                       | Check formatting                                    |
+| `bun run db:generate --name=describe_change` | Generate versioned migration artifacts              |
+| `bun run db:migrate`                         | Apply committed SQL migrations                      |
 
 TypeScript is constrained to `~6.0.3` because the current `vue-tsc` imports compiler APIs removed in TypeScript 7. Other direct dependencies use stable releases. Oxfmt uses single quotes and no semicolons. No ESLint, Prettier, UI framework, chart library or realtime platform is added.
 
-Per repository instructions, build, lint, tests, type checking, formatting and other validation commands were **not run** during implementation. SQL migrations were generated but **not applied** to a database. The maintainer should format and independently verify the application; a CI sequence can run `typecheck`, `lint`, `format:check`, then `build`.
+Task Picking was verified against an isolated MySQL 8.4 database with the committed migrations applied: eight API/SSE integration checks and two Chromium clients covered concurrent picks, ownership enforcement, stale updates, point totals, reconnecting, and starting with unpicked tasks. Browser layout checks covered 320, 375, 768, and 1440 pixel widths. Typecheck, lint, and production build passed. Files changed for this feature pass Oxfmt; the full repository format check still reports existing issues in untouched files.
+
+The integration suite creates test accounts, a project, a sprint, and tasks. Run it only with a disposable migrated database and a running Nuxt server. It skips when `TASK_PICKING_TEST_URL` is unset. No production migration or data changes are needed for Task Picking.
 
 ## Source layout
 

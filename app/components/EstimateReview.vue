@@ -5,24 +5,234 @@ import { persianDate } from '#shared/calendar'
 
 const props = defineProps<{ snapshot: PokerSnapshot; busy: boolean }>()
 const emit = defineEmits<{ action: [action: string, fields?: Record<string, unknown>] }>()
-const editable = computed(() => props.snapshot.me.facilitator && props.snapshot.session.status === 'review')
-const buckets = computed(() => [...new Set([...props.snapshot.session.cards.filter((card) => /^\d+$/.test(card)).map(Number), ...props.snapshot.tasks.flatMap((task) => task.finalPoint === null ? [] : [task.finalPoint])])].sort((a, b) => a - b))
+const editable = computed(
+  () => props.snapshot.me.facilitator && props.snapshot.session.status === 'review',
+)
+const buckets = computed(() =>
+  [
+    ...new Set([
+      ...props.snapshot.session.cards.filter((card) => /^\d+$/.test(card)).map(Number),
+      ...props.snapshot.tasks.flatMap((task) =>
+        task.finalPoint === null ? [] : [task.finalPoint],
+      ),
+    ]),
+  ].sort((a, b) => a - b),
+)
 const selected = ref<PokerSnapshot['tasks'][number] | null>(null)
 const details = ref(false)
-const detailTask = computed(() => props.snapshot.tasks.find((task) => task.id === selected.value?.id))
-const stats = (task: PokerSnapshot['tasks'][number]) => numericVotes(task.votes.filter((vote) => vote.round === task.round).map((vote) => vote.value))
+const detailTask = computed(() =>
+  props.snapshot.tasks.find((task) => task.id === selected.value?.id),
+)
+const stats = (task: PokerSnapshot['tasks'][number]) =>
+  numericVotes(task.votes.filter((vote) => vote.round === task.round).map((vote) => vote.value))
 function drop(event: DragEvent, point: number) {
   if (!editable.value || props.busy) return
   const taskId = event.dataTransfer?.getData('text/plain')
-  if (props.snapshot.tasks.some((task) => task.id === taskId)) emit('action', 'calibrate', { taskId, point })
+  if (props.snapshot.tasks.some((task) => task.id === taskId))
+    emit('action', 'calibrate', { taskId, point })
+}
+function showDetails(task: PokerSnapshot['tasks'][number]) {
+  selected.value = task
+  details.value = true
+}
+function revote(taskId: string) {
+  emit('action', 'revote', { taskId })
+  details.value = false
 }
 </script>
 
 <template>
   <section>
-    <div class="panel mb-6 p-6"><div class="flex items-start gap-4"><span class="h-12 w-12 flex shrink-0 items-center justify-center rounded-xl bg-brand-50 text-2xl text-brand-700"><Icon :name="snapshot.session.status === 'finalized' ? 'lucide:circle-check' : 'lucide:blocks'" aria-hidden="true" /></span><div><h2 class="text-xl font-bold">{{ snapshot.session.status === 'finalized' ? 'تخمین‌ها نهایی شدند' : 'یک نگاه به اندازه کارها' }}</h2><p class="mt-3 text-sm leading-8 text-muted">{{ snapshot.session.status === 'finalized' ? 'پوینت‌ها در کارهای پروژه ذخیره شده‌اند؛ حالا می‌توانید اسپرینت را برنامه‌ریزی کنید.' : 'آیا کارهای هم‌پوینت تقریباً هم‌اندازه‌اند؟ قبل از نهایی کردن، آن‌ها را کنار هم مقایسه کنید.' }}</p></div></div><p v-if="editable" class="mt-4 text-xs leading-7 text-muted">کارها را بین ستون‌ها بکشید یا از انتخاب پوینت استفاده کنید. تغییر بلافاصله ذخیره می‌شود و تاریخچه باقی می‌ماند.</p></div>
-    <div class="flex items-start gap-4 overflow-x-auto pb-5"><section v-for="point in buckets" :key="point" class="w-64 shrink-0 rounded-[18px] border border-line bg-[#eef2f6] p-3" @dragover.prevent @drop.prevent="drop($event, point)"><h3 class="mb-4 flex items-center gap-2 px-1 py-2"><PointBadge :point="point" /><span class="text-sm font-bold">پوینت</span><span class="mr-auto text-xs text-muted">{{ snapshot.tasks.filter((task) => task.finalPoint === point).length.toLocaleString('fa-IR') }} کار</span></h3><div class="min-h-28 space-y-3"><article v-for="task in snapshot.tasks.filter((item) => item.finalPoint === point)" :key="task.id" class="rounded-[14px] border border-line bg-white p-4" :draggable="editable && !busy" @dragstart="$event.dataTransfer?.setData('text/plain', task.id)"><button class="w-full break-words text-right text-sm font-bold leading-7" @click="selected = task; details = true">{{ task.title }}</button><p v-if="stats(task).disagreement" class="mt-3 flex items-center gap-1 text-xs text-amber-700"><Icon name="lucide:triangle-alert" aria-hidden="true" /> اختلاف رأی بالا</p><div class="mt-4 flex items-center justify-between gap-2"><button class="min-h-11 rounded-lg px-2 text-xs text-brand-700" @click="selected = task; details = true">رأی‌ها و تاریخچه</button><select v-if="editable" :value="task.finalPoint" class="h-11 rounded-lg border border-line bg-white px-2 text-sm" :disabled="busy" :aria-label="`تغییر پوینت ${task.title}`" @change="emit('action', 'calibrate', { taskId: task.id, point: Number(($event.target as HTMLSelectElement).value) })"><option v-for="value in buckets" :key="value" :value="value">{{ value }}</option></select></div></article><p v-if="!snapshot.tasks.some((task) => task.finalPoint === point)" class="rounded-xl border border-dashed border-line px-3 py-8 text-center text-xs text-muted">{{ editable ? 'کار را اینجا رها کنید' : 'کاری با این اندازه نیست' }}</p></div></section></div>
-    <div class="mt-6 flex flex-wrap items-center justify-between gap-4"><NuxtLink :to="`/projects/${snapshot.session.projectId}/backlog`" class="button-secondary">دیدن بک‌لاگ<Icon name="lucide:arrow-left" aria-hidden="true" /></NuxtLink><button v-if="editable" class="button-primary" :disabled="busy" @click="emit('action', 'finalize')"><Icon name="lucide:check-check" aria-hidden="true" /> نهایی کردن تخمین‌ها</button><p v-else-if="snapshot.session.status === 'review'" class="text-xs text-muted">تسهیل‌گر تخمین‌های جلسه را نهایی می‌کند.</p></div>
-    <UiDialog v-model="details" :title="detailTask?.title ?? 'رأی‌ها و تاریخچه'"><div v-if="detailTask"><div class="grid grid-cols-3 gap-3"><div v-for="metric in [{ label: 'میانه', value: stats(detailTask).median }, { label: 'میانگین', value: stats(detailTask).average }, { label: 'دامنه', value: stats(detailTask).range }]" :key="metric.label" class="rounded-xl bg-canvas p-3"><p class="text-xs text-muted">{{ metric.label }}</p><p class="mt-2 text-xl font-bold">{{ metric.value === null ? '—' : metric.value.toLocaleString('fa-IR', { maximumFractionDigits: 1 }) }}</p></div></div><h3 class="mb-3 mt-6 text-sm font-bold">رأی‌های ثبت‌شده</h3><ul class="max-h-60 overflow-y-auto space-y-2"><li v-for="vote in detailTask.votes" :key="`${vote.round}-${vote.userId}`" class="flex items-center gap-2 rounded-lg border border-line p-3 text-sm"><span class="flex-1">{{ vote.name }}</span><span class="text-xs text-muted">دور {{ vote.round.toLocaleString('fa-IR') }}</span><span class="min-w-7 text-center font-bold">{{ cardLabel(vote.value) }}</span></li></ul><h3 class="mb-3 mt-6 text-sm font-bold">تاریخچه تخمین</h3><ul class="space-y-3"><li v-for="(entry, index) in detailTask.history" :key="index" class="flex flex-wrap items-center gap-2 text-xs text-muted"><span>{{ entry.reason === 'accepted' ? 'پذیرش تخمین' : 'کالیبراسیون' }}</span><PointBadge :point="entry.previousPoint" /><Icon name="lucide:arrow-left" aria-hidden="true" /><PointBadge :point="entry.point" /><span class="mr-auto">{{ persianDate(entry.date, true) }}</span></li></ul><div class="mt-6 flex flex-wrap gap-3"><button v-if="editable" class="button-primary text-sm" :disabled="busy" @click="emit('action', 'revote', { taskId: detailTask.id }); details = false"><Icon name="lucide:rotate-ccw" aria-hidden="true" /> رأی‌گیری دوباره</button><button class="button-secondary text-sm" @click="details = false">حفظ تخمین</button></div></div></UiDialog>
+    <div class="panel mb-6 p-6">
+      <div class="flex items-start gap-4">
+        <span
+          class="h-12 w-12 flex shrink-0 items-center justify-center rounded-xl bg-brand-50 text-2xl text-brand-700"
+          ><Icon
+            :name="
+              snapshot.session.status === 'finalized' ? 'lucide:circle-check' : 'lucide:blocks'
+            "
+            aria-hidden="true"
+        /></span>
+        <div>
+          <h2 class="text-xl font-bold">
+            {{
+              snapshot.session.status === 'finalized'
+                ? 'تخمین‌ها نهایی شدند'
+                : 'یک نگاه به اندازه کارها'
+            }}
+          </h2>
+          <p class="mt-3 text-sm leading-8 text-muted">
+            {{
+              snapshot.session.status === 'finalized'
+                ? snapshot.session.sprintId
+                  ? 'پوینت‌ها ذخیره شدند؛ حالا هر نفر کار خودش را برای اسپرینت انتخاب می‌کند.'
+                  : 'پوینت‌ها ذخیره شدند؛ یک اسپرینت بسازید و کارها را برای انتخاب تیم به آن اضافه کنید.'
+                : 'آیا کارهای هم‌پوینت تقریباً هم‌اندازه‌اند؟ قبل از نهایی کردن، آن‌ها را کنار هم مقایسه کنید.'
+            }}
+          </p>
+        </div>
+      </div>
+      <p v-if="editable" class="mt-4 text-xs leading-7 text-muted">
+        کارها را بین ستون‌ها بکشید یا از انتخاب پوینت استفاده کنید. تغییر بلافاصله ذخیره می‌شود و
+        تاریخچه باقی می‌ماند.
+      </p>
+    </div>
+    <div class="flex items-start gap-4 overflow-x-auto pb-5">
+      <section
+        v-for="point in buckets"
+        :key="point"
+        class="w-64 shrink-0 rounded-[18px] border border-line bg-[#eef2f6] p-3"
+        @dragover.prevent
+        @drop.prevent="drop($event, point)"
+      >
+        <h3 class="mb-4 flex items-center gap-2 px-1 py-2">
+          <PointBadge :point="point" /><span class="text-sm font-bold">پوینت</span
+          ><span class="mr-auto text-xs text-muted"
+            >{{
+              snapshot.tasks
+                .filter((task) => task.finalPoint === point)
+                .length.toLocaleString('fa-IR')
+            }}
+            کار</span
+          >
+        </h3>
+        <div class="min-h-28 space-y-3">
+          <article
+            v-for="task in snapshot.tasks.filter((item) => item.finalPoint === point)"
+            :key="task.id"
+            class="rounded-[14px] border border-line bg-white p-4"
+            :draggable="editable && !busy"
+            @dragstart="$event.dataTransfer?.setData('text/plain', task.id)"
+          >
+            <button
+              class="w-full break-words text-right text-sm font-bold leading-7"
+              @click="showDetails(task)"
+            >
+              {{ task.title }}
+            </button>
+            <p
+              v-if="stats(task).disagreement"
+              class="mt-3 flex items-center gap-1 text-xs text-amber-700"
+            >
+              <Icon name="lucide:triangle-alert" aria-hidden="true" /> اختلاف رأی بالا
+            </p>
+            <div class="mt-4 flex items-center justify-between gap-2">
+              <button
+                class="min-h-11 rounded-lg px-2 text-xs text-brand-700"
+                @click="showDetails(task)"
+              >
+                رأی‌ها و تاریخچه</button
+              ><select
+                v-if="editable"
+                :value="task.finalPoint"
+                class="h-11 rounded-lg border border-line bg-white px-2 text-sm"
+                :disabled="busy"
+                :aria-label="`تغییر پوینت ${task.title}`"
+                @change="
+                  emit('action', 'calibrate', {
+                    taskId: task.id,
+                    point: Number(($event.target as HTMLSelectElement).value),
+                  })
+                "
+              >
+                <option v-for="value in buckets" :key="value" :value="value">{{ value }}</option>
+              </select>
+            </div>
+          </article>
+          <p
+            v-if="!snapshot.tasks.some((task) => task.finalPoint === point)"
+            class="rounded-xl border border-dashed border-line px-3 py-8 text-center text-xs text-muted"
+          >
+            {{ editable ? 'کار را اینجا رها کنید' : 'کاری با این اندازه نیست' }}
+          </p>
+        </div>
+      </section>
+    </div>
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-4">
+      <NuxtLink :to="`/projects/${snapshot.session.projectId}/backlog`" class="button-secondary"
+        >دیدن بک‌لاگ<Icon name="lucide:arrow-left" aria-hidden="true" /></NuxtLink
+      ><button
+        v-if="editable"
+        class="button-primary"
+        :disabled="busy"
+        @click="emit('action', 'finalize')"
+      >
+        <Icon name="lucide:check-check" aria-hidden="true" /> نهایی کردن تخمین‌ها</button
+      ><NuxtLink
+        v-else-if="snapshot.session.status === 'finalized'"
+        :to="
+          snapshot.session.sprintId
+            ? `/projects/${snapshot.session.projectId}/sprints/${snapshot.session.sprintId}/picking`
+            : `/projects/${snapshot.session.projectId}/sprint`
+        "
+        class="button-primary"
+        >انتخاب کارهای اسپرینت<Icon name="lucide:arrow-left" aria-hidden="true"
+      /></NuxtLink>
+      <p v-else-if="snapshot.session.status === 'review'" class="text-xs text-muted">
+        تسهیل‌گر تخمین‌های جلسه را نهایی می‌کند.
+      </p>
+    </div>
+    <UiDialog v-model="details" :title="detailTask?.title ?? 'رأی‌ها و تاریخچه'"
+      ><div v-if="detailTask">
+        <div class="grid grid-cols-3 gap-3">
+          <div
+            v-for="metric in [
+              { label: 'میانه', value: stats(detailTask).median },
+              { label: 'میانگین', value: stats(detailTask).average },
+              { label: 'دامنه', value: stats(detailTask).range },
+            ]"
+            :key="metric.label"
+            class="rounded-xl bg-canvas p-3"
+          >
+            <p class="text-xs text-muted">{{ metric.label }}</p>
+            <p class="mt-2 text-xl font-bold">
+              {{
+                metric.value === null
+                  ? '—'
+                  : metric.value.toLocaleString('fa-IR', { maximumFractionDigits: 1 })
+              }}
+            </p>
+          </div>
+        </div>
+        <h3 class="mb-3 mt-6 text-sm font-bold">رأی‌های ثبت‌شده</h3>
+        <ul class="max-h-60 overflow-y-auto space-y-2">
+          <li
+            v-for="vote in detailTask.votes"
+            :key="`${vote.round}-${vote.userId}`"
+            class="flex items-center gap-2 rounded-lg border border-line p-3 text-sm"
+          >
+            <span class="flex-1">{{ vote.name }}</span
+            ><span class="text-xs text-muted">دور {{ vote.round.toLocaleString('fa-IR') }}</span
+            ><span class="min-w-7 text-center font-bold">{{ cardLabel(vote.value) }}</span>
+          </li>
+        </ul>
+        <h3 class="mb-3 mt-6 text-sm font-bold">تاریخچه تخمین</h3>
+        <ul class="space-y-3">
+          <li
+            v-for="(entry, index) in detailTask.history"
+            :key="index"
+            class="flex flex-wrap items-center gap-2 text-xs text-muted"
+          >
+            <span>{{ entry.reason === 'accepted' ? 'پذیرش تخمین' : 'کالیبراسیون' }}</span
+            ><PointBadge :point="entry.previousPoint" /><Icon
+              name="lucide:arrow-left"
+              aria-hidden="true"
+            /><PointBadge :point="entry.point" /><span class="mr-auto">{{
+              persianDate(entry.date, true)
+            }}</span>
+          </li>
+        </ul>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <button
+            v-if="editable"
+            class="button-primary text-sm"
+            :disabled="busy"
+            @click="revote(detailTask.id)"
+          >
+            <Icon name="lucide:rotate-ccw" aria-hidden="true" /> رأی‌گیری دوباره</button
+          ><button class="button-secondary text-sm" @click="details = false">حفظ تخمین</button>
+        </div>
+      </div></UiDialog
+    >
   </section>
 </template>

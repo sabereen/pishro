@@ -1,10 +1,7 @@
 {
   "name": "pishro",
-  "type": "module",
   "private": true,
-  "engines": {
-    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
-  },
+  "type": "module",
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
@@ -15,7 +12,8 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "test:integration": "node --test tests/task-picking.test.mjs"
   },
   "dependencies": {
     "@nuxt/icon": "^2.5.1",
@@ -36,5 +34,8 @@
     "typescript": "~6.0.3",
     "unocss": "^66.10.5",
     "vue-tsc": "^3.3.13"
+  },
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
   }
 }

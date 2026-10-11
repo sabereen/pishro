@@ -13,9 +13,12 @@ export default defineEventHandler(async (event) => {
     const [task] = await selectedTasks(tx, projectId, [id])
     if (task) {
       if ('revision' in body && integerInput(body.revision, 0, 2147483647) !== task.revision) {
-        throw createError({ statusCode: 409, message: 'این کار توسط هم‌تیمی شما تغییر کرده است؛ جزئیات را دوباره باز کنید.' })
+        throw createError({
+          statusCode: 409,
+          message: 'این کار توسط هم‌تیمی شما تغییر کرده است؛ جزئیات را دوباره باز کنید.',
+        })
       }
-      await updateTask(tx, task, patch)
+      await updateTask(tx, task, patch, user.id)
     }
   })
   return { ok: true }

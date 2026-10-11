@@ -14,12 +14,23 @@ export default defineEventHandler(async (event) => {
   const id = randomUUID()
   await useDatabase().transaction(async (tx) => {
     await lockProject(tx, projectId, user.id)
-    const [last] = await tx.select({ rank: workItems.rank }).from(workItems).where(eq(workItems.projectId, projectId)).orderBy(desc(workItems.rank)).limit(1)
-    const rows = await tx.select({ id: workItems.id }).from(workItems).where(eq(workItems.projectId, projectId))
-    if (rows.length >= 2500) throw createError({ statusCode: 409, message: 'ظرفیت کارهای پروژه تکمیل شده است.' })
-    await tx.insert(workItems).values({ id, projectId, title, description: '', rank: (last?.rank ?? 0) + 1 })
+    const [last] = await tx
+      .select({ rank: workItems.rank })
+      .from(workItems)
+      .where(eq(workItems.projectId, projectId))
+      .orderBy(desc(workItems.rank))
+      .limit(1)
+    const rows = await tx
+      .select({ id: workItems.id })
+      .from(workItems)
+      .where(eq(workItems.projectId, projectId))
+    if (rows.length >= 2500)
+      throw createError({ statusCode: 409, message: 'ظرفیت کارهای پروژه تکمیل شده است.' })
+    await tx
+      .insert(workItems)
+      .values({ id, projectId, title, description: '', rank: (last?.rank ?? 0) + 1 })
     const [task] = await tx.select().from(workItems).where(eq(workItems.id, id))
-    if (task) await updateTask(tx, task, patch)
+    if (task) await updateTask(tx, task, patch, user.id)
   })
   return { id }
 })
