@@ -1,4 +1,4 @@
-import type { PublicUser } from '../../shared/scrum'
+import type { PublicUser } from '#shared/scrum'
 
 export function useAuth() {
   const user = useState<PublicUser | null>('current-user', () => null)

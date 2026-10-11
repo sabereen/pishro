@@ -1,4 +1,4 @@
-import type { ProjectOverview } from '../../shared/models'
+import type { ProjectOverview } from '#shared/models'
 
 export function useProject() {
   const route = useRoute()

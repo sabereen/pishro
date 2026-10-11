@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { Member } from '../../../../shared/models'
-import { cardLabel, pointValues } from '../../../../shared/scrum'
+import type { Member } from '#shared/models'
+import { cardLabel, pointValues } from '#shared/scrum'
 
 definePageMeta({ layout: 'project', middleware: 'auth', key: (route) => route.path })
 const { data: project } = await useProject()

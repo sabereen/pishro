@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { SprintMetrics } from '../../shared/scrum'
-import { persianDate, todayInTehran } from '../../shared/calendar'
+import type { SprintMetrics } from '#shared/scrum'
+import { persianDate, todayInTehran } from '#shared/calendar'
 
 const props = defineProps<{ metrics: SprintMetrics }>()
 const today = todayInTehran()

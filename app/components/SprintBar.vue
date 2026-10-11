@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ProjectOverview } from '../../shared/models'
+import type { ProjectOverview } from '#shared/models'
 
 const props = defineProps<{ project: ProjectOverview }>()
 const sprint = computed(() => props.project.sprints.find((item) => item.status === 'active'))

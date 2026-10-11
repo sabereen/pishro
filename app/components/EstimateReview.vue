@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { PokerSnapshot } from '../../shared/models'
-import { cardLabel, numericVotes } from '../../shared/scrum'
-import { persianDate } from '../../shared/calendar'
+import type { PokerSnapshot } from '#shared/models'
+import { cardLabel, numericVotes } from '#shared/scrum'
+import { persianDate } from '#shared/calendar'
 
 const props = defineProps<{ snapshot: PokerSnapshot; busy: boolean }>()
 const emit = defineEmits<{ action: [action: string, fields?: Record<string, unknown>] }>()

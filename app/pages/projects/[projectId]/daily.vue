@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { DailyReport } from '../../../../shared/models'
-import { datesBetween, isWorkingDay, persianDate, todayInTehran } from '../../../../shared/calendar'
+import type { DailyReport } from '#shared/models'
+import { datesBetween, isWorkingDay, persianDate, todayInTehran } from '#shared/calendar'
 
 definePageMeta({ layout: 'project', middleware: 'auth', key: (route) => route.path })
 const { data: project } = await useProject()
