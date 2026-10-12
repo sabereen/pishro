@@ -1,8 +1,8 @@
 export const taskStatuses = ['todo', 'in_progress', 'review', 'done'] as const
 export const priorities = ['low', 'normal', 'high'] as const
 export const pokerStates = ['draft', 'lobby', 'voting', 'reveal', 'review', 'finalized'] as const
-export const pointValues = [0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89] as const
-export const defaultCards = ['1', '2', '3', '5', '8', '13', '21', '?', 'coffee']
+export const pointValues = [0, 0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89] as const
+export const defaultCards = ['0.5', '1', '2', '3', '5', '8', '13', '21', '?', 'coffee']
 export const statusLabels = { todo: 'برای انجام', in_progress: 'در حال انجام', review: 'بازبینی', done: 'انجام شده' }
 export const pokerLabels = { draft: 'پیش‌نویس', lobby: 'لابی', voting: 'رأی‌گیری', reveal: 'گفت‌وگو', review: 'بازبینی تخمین‌ها', finalized: 'نهایی شده' }
 export type TaskStatus = (typeof taskStatuses)[number]
@@ -14,8 +14,12 @@ export type SprintMetrics = {
   chart: { date: string; expected: number; actual: number }[]
 }
 
+export function isNumericCard(value: string): boolean {
+  return /^\d+(?:\.5)?$/.test(value)
+}
+
 export function numericVotes(values: string[]) {
-  const numbers = values.filter((value) => /^\d+$/.test(value)).map(Number).sort((a, b) => a - b)
+  const numbers = values.filter(isNumericCard).map(Number).sort((a, b) => a - b)
   const count = numbers.length
   const low = numbers[0] ?? null
   const high = numbers[count - 1] ?? null

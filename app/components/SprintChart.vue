@@ -16,7 +16,7 @@ const actual = computed(() => props.metrics.chart.map((point, index) => ({ ...po
   <section class="panel p-5">
     <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-bold">پیشرفت در مسیر اسپرینت</h2><div class="flex gap-4 text-xs text-muted"><span class="flex items-center gap-2"><span class="h-0.5 w-5 bg-slate-400" /> انتظار</span><span class="flex items-center gap-2"><span class="h-0.5 w-5 bg-brand-600" /> واقعی</span></div></div>
     <svg viewBox="0 0 700 230" class="mt-4 w-full" role="img" :aria-label="`پیشرفت اسپرینت: ${metrics.done} پوینت انجام شده از ${metrics.total}؛ انتظار ${metrics.expected.toFixed(1)} پوینت`" dir="ltr">
-      <g v-for="fraction in [0, 0.5, 1]" :key="fraction"><line x1="40" x2="660" :y1="y(ceiling * fraction)" :y2="y(ceiling * fraction)" stroke="#e0e6ed" /><text x="30" :y="y(ceiling * fraction) + 4" text-anchor="end" fill="#627084" font-size="11">{{ Math.round(ceiling * fraction).toLocaleString('fa-IR') }}</text></g>
+      <g v-for="fraction in [0, 0.5, 1]" :key="fraction"><line x1="40" x2="660" :y1="y(ceiling * fraction)" :y2="y(ceiling * fraction)" stroke="#e0e6ed" /><text x="30" :y="y(ceiling * fraction) + 4" text-anchor="end" fill="#627084" font-size="11">{{ (ceiling * fraction).toLocaleString('fa-IR', { maximumFractionDigits: 1 }) }}</text></g>
       <path :d="expected" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 5" />
       <path :d="actual" fill="none" stroke="#07846b" stroke-width="3" stroke-linejoin="round" />
       <text x="40" y="217" fill="#627084" font-size="11">{{ metrics.chart[0] ? persianDate(metrics.chart[0].date, true) : '' }}</text>

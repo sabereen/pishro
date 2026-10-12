@@ -17,7 +17,7 @@ import { useDatabase } from '../utils/database'
 import type { DatabaseTransaction } from '../utils/database'
 import { gravatarUrl } from '../utils/avatar'
 import { jsonValue } from '../utils/json'
-import { enumInput, integerInput, textInput, markdownInput, uuidInput } from '../utils/validation'
+import { enumInput, textInput, markdownInput, pointInput, uuidInput } from '../utils/validation'
 
 export async function lockProject(
   tx: DatabaseTransaction,
@@ -140,7 +140,7 @@ export function taskPatch(body: Record<string, unknown>) {
   > = {}
   if ('title' in body) patch.title = textInput(body.title, 240)
   if ('description' in body) patch.description = markdownInput(body.description)
-  if ('point' in body) patch.point = body.point === null ? null : integerInput(body.point, 0, 100)
+  if ('point' in body) patch.point = body.point === null ? null : pointInput(body.point)
   if ('status' in body) patch.status = enumInput(body.status, taskStatuses)
   if ('priority' in body) patch.priority = enumInput(body.priority, priorities)
   if ('assigneeId' in body)

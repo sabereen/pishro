@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { PokerSnapshot } from '#shared/models'
-import { cardLabel, numericVotes } from '#shared/scrum'
+import { cardLabel, isNumericCard, numericVotes } from '#shared/scrum'
 import { persianDate } from '#shared/calendar'
 
 const props = defineProps<{ snapshot: PokerSnapshot; busy: boolean }>()
@@ -11,7 +11,7 @@ const editable = computed(
 const buckets = computed(() =>
   [
     ...new Set([
-      ...props.snapshot.session.cards.filter((card) => /^\d+$/.test(card)).map(Number),
+      ...props.snapshot.session.cards.filter(isNumericCard).map(Number),
       ...props.snapshot.tasks.flatMap((task) =>
         task.finalPoint === null ? [] : [task.finalPoint],
       ),
@@ -189,7 +189,7 @@ function revote(taskId: string) {
               {{
                 metric.value === null
                   ? '—'
-                  : metric.value.toLocaleString('fa-IR', { maximumFractionDigits: 1 })
+                  : metric.value.toLocaleString('fa-IR', { maximumFractionDigits: 2 })
               }}
             </p>
           </div>

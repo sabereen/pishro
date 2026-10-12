@@ -81,3 +81,13 @@ export function markdownInput(value: unknown, max = 10000): string {
   }
   return value
 }
+
+export function pointInput(value: unknown): number {
+  if (typeof value !== 'number' || value < 0 || value > 100 || !Number.isInteger(value * 2)) {
+    throw createError({
+      statusCode: 400,
+      message: 'پوینت باید بین صفر و ۱۰۰ و با گام نیم‌پوینت باشد.',
+    })
+  }
+  return value
+}

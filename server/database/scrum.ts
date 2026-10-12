@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { date, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
+import { date, decimal, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
 import { pokerStates, priorities, taskStatuses } from '../../shared/scrum'
 import type { ProjectSettings } from '../../shared/scrum'
 
@@ -57,7 +57,7 @@ export const workItems = mysqlTable('work_items', {
   id: id(), projectId: varchar('project_id', { length: 36 }).notNull().references(() => projects.id, { onDelete: 'cascade' }),
   sprintId: varchar('sprint_id', { length: 36 }), assigneeId: varchar('assignee_id', { length: 36 }),
   title: varchar('title', { length: 240 }).notNull(), description: text('description').notNull(),
-  point: int('point', { unsigned: true }), status: mysqlEnum('status', taskStatuses).notNull().default('todo'),
+  point: decimal('point', { precision: 11, scale: 1, unsigned: true, mode: 'number' }), status: mysqlEnum('status', taskStatuses).notNull().default('todo'),
   priority: mysqlEnum('priority', priorities).notNull().default('normal'), rank: int('rank').notNull(),
   sprintAssignedAt: timestamp('sprint_assigned_at', { mode: 'date', fsp: 3 }),
   doneAt: timestamp('done_at', { mode: 'date' }), createdAt: createdAt(),
@@ -75,7 +75,7 @@ export const workItems = mysqlTable('work_items', {
 export const sprintPointEvents = mysqlTable('sprint_point_events', {
   id: id(), sprintId: varchar('sprint_id', { length: 36 }).notNull().references(() => sprints.id, { onDelete: 'cascade' }),
   taskId: varchar('task_id', { length: 36 }).references(() => workItems.id, { onDelete: 'set null' }),
-  delta: int('delta').notNull(), occurredAt: timestamp('occurred_at', { mode: 'date', fsp: 3 }).notNull(),
+  delta: decimal('delta', { precision: 11, scale: 1, mode: 'number' }).notNull(), occurredAt: timestamp('occurred_at', { mode: 'date', fsp: 3 }).notNull(),
 }, (table) => [index('sprint_events_time_idx').on(table.sprintId, table.occurredAt)])
 
 export const dailyReports = mysqlTable('daily_reports', {
@@ -132,7 +132,7 @@ export const pokerSessionTasks = mysqlTable('poker_session_tasks', {
   status: mysqlEnum('status', ['pending', 'active', 'estimated']).notNull().default('pending'),
   ignoredUserIds: json('ignored_user_ids').$type<string[]>().notNull(),
   revoteRequired: int('revote_required', { unsigned: true }).notNull().default(0),
-  finalPoint: int('final_point', { unsigned: true }), round: int('round', { unsigned: true }).notNull().default(1),
+  finalPoint: decimal('final_point', { precision: 11, scale: 1, unsigned: true, mode: 'number' }), round: int('round', { unsigned: true }).notNull().default(1),
 }, (table) => [
   uniqueIndex('poker_task_unique').on(table.sessionId, table.taskId),
   uniqueIndex('poker_task_position_unique').on(table.sessionId, table.position),
@@ -149,6 +149,6 @@ export const pokerVotes = mysqlTable('poker_votes', {
 export const estimateHistory = mysqlTable('estimate_history', {
   id: id(), sessionTaskId: varchar('session_task_id', { length: 36 }).notNull().references(() => pokerSessionTasks.id, { onDelete: 'cascade' }),
   userId: varchar('user_id', { length: 36 }).notNull().references(() => users.id),
-  previousPoint: int('previous_point', { unsigned: true }), point: int('point', { unsigned: true }).notNull(),
+  previousPoint: decimal('previous_point', { precision: 11, scale: 1, unsigned: true, mode: 'number' }), point: decimal('point', { precision: 11, scale: 1, unsigned: true, mode: 'number' }).notNull(),
   reason: mysqlEnum('reason', ['accepted', 'calibrated']).notNull(), createdAt: createdAt(),
 }, (table) => [index('estimate_history_task_idx').on(table.sessionTaskId, table.createdAt)])

@@ -16,7 +16,7 @@ import { requireProject } from '../utils/auth'
 import { useDatabase } from '../utils/database'
 import { gravatarUrl } from '../utils/avatar'
 import { jsonValue } from '../utils/json'
-import { enumInput, integerInput, uuidInput } from '../utils/validation'
+import { enumInput, integerInput, pointInput, uuidInput } from '../utils/validation'
 import { lockProject, selectedTasks, updateTask } from './projects'
 
 export async function requirePoker(event: H3Event) {
@@ -176,7 +176,7 @@ export async function planningAction(
   ] as const)
   const revision = integerInput(body.revision, 0, 2147483647)
   await useDatabase().transaction(async (tx) => {
-    await lockProject(tx, context.projectId, context.user.id)
+    const project = await lockProject(tx, context.projectId, context.user.id)
     const [session] = await tx
       .select()
       .from(pokerSessions)
@@ -298,8 +298,14 @@ export async function planningAction(
     }
     const next: Partial<typeof pokerSessions.$inferInsert> = { revision: session.revision + 1 }
     if (action === 'publish' && session.status === 'draft') next.status = 'lobby'
-    else if (action === 'start' && session.status === 'lobby') next.status = 'voting'
-    else if (action === 'revote' && (session.status === 'reveal' || session.status === 'review')) {
+    else if (action === 'start' && session.status === 'lobby') {
+      // Use the manager's current deck before the first vote; later rounds keep it.
+      next.cards = project.settings.cards
+      next.status = 'voting'
+    } else if (
+      action === 'revote' &&
+      (session.status === 'reveal' || session.status === 'review')
+    ) {
       const item = items.find((entry) => entry.id === body.taskId)
       if (!item || (session.status === 'reveal' && item.id !== current?.id))
         throw createError({ statusCode: 400, message: 'کار انتخاب‌شده معتبر نیست.' })
@@ -332,7 +338,7 @@ export async function planningAction(
           statusCode: 409,
           message: 'ابتدا ابهام را برطرف کنید و دوباره رأی بگیرید.',
         })
-      const point = integerInput(body.point, 0, 100)
+      const point = pointInput(body.point)
       const [task] = await selectedTasks(tx, context.projectId, [item.taskId])
       if (!task) throw createError({ statusCode: 404, message: 'کار پیدا نشد.' })
       await updateTask(tx, task, { point }, context.user.id)

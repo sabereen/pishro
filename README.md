@@ -104,6 +104,16 @@ Task Picking was verified against an isolated MySQL 8.4 database with the commit
 
 The integration suite creates test accounts, a project, a sprint, and tasks. Run it only with a disposable migrated database and a running Nuxt server. It skips when `TASK_PICKING_TEST_URL` is unset. No production migration or data changes are needed for Task Picking.
 
+## Fractional points and Poker decks
+
+The point list includes `0` and `0.5`. Task edits, final estimates and calibration accept half-point increments from 0 through 100. A shared numeric-card predicate includes zero and half-points in vote statistics, suggested estimates and review buckets. The final-estimate form uses a half-point step and renders directly, avoiding an inert native template and SSR hydration mismatch. Half-points are enabled by default for newly created projects; existing projects can enable the card in project settings. Zero remains optional and is selectable whenever the manager enables it.
+
+Saving the manager's card settings updates every open Poker session and increments its revision, so SSE clients receive the enabled deck immediately. Existing votes and estimates are preserved, and finalized sessions retain their original decks. Starting a session also refreshes its deck from the current project settings. Numeric cards are ordered consistently with zero first.
+
+Apply committed migration `0003_fractional_points` with `pnpm db:migrate` before deploying this code. Five point/history/progress columns use `DECIMAL(11,1)` with Drizzle's number mode, preserving integer ranges, zero, null and signed progress deltas. The migration also refreshes stale decks in open sessions from project settings without deleting vote history or changing archived decks. Migration generation metadata includes explicit non-autoincrement flags for the two columns added by migration 0002; no changes to those columns are needed.
+
+Run `pnpm test:points` for numeric-card statistics and server validation. Run `POKER_POINTS_TEST_URL=http://localhost:3000 pnpm test:poker` only against a disposable migrated database and a running server; it creates test accounts, project, sprint, tasks and sessions. The integration checks cover enabling zero after session creation and during voting, zero/half-point voting and acceptance, calibration history, fractional progress and rejecting disabled zero. The MySQL 8.4 upgrade was also verified with integer extremes, zero, null, signed deltas, existing votes and archived decks. Chromium verified visible/selectable zero and half-point cards, live deck updates and accepting `0.5` through the real form/API.
+
 ## Avatars and interface motion
 
 User avatars use Gravatar's SHA-256 hash of the trimmed, lowercase email. `server/utils/avatar.ts` builds the URL in the server DTOs, including project members, Poker participants, Task Picking and daily report authors. `UserAvatar` renders a consistent circle with local initials (or a user icon) while loading and when Gravatar has no image or fails. Requests use HTTPS, a G rating, `d=404`, lazy loading and no referrer. Cached images that finish before hydration are handled on mount. No avatar dependency, upload flow or database migration is added.
