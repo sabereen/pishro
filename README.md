@@ -104,6 +104,12 @@ Task Picking was verified against an isolated MySQL 8.4 database with the commit
 
 The integration suite creates test accounts, a project, a sprint, and tasks. Run it only with a disposable migrated database and a running Nuxt server. It skips when `TASK_PICKING_TEST_URL` is unset. No production migration or data changes are needed for Task Picking.
 
+## Avatars and interface motion
+
+User avatars use Gravatar's SHA-256 hash of the trimmed, lowercase email. `server/utils/avatar.ts` builds the URL in the server DTOs, including project members, Poker participants, Task Picking and daily report authors. `UserAvatar` renders a consistent circle with local initials (or a user icon) while loading and when Gravatar has no image or fails. Requests use HTTPS, a G rating, `d=404`, lazy loading and no referrer. Cached images that finish before hydration are handled on mount. No avatar dependency, upload flow or database migration is added.
+
+Shared Vue/CSS transitions animate dialogs, task drawers, search suggestions, inline link controls, settings tabs, action bars and toasts. Dialogs keep their native modal behavior during the short exit transition and return focus to the trigger. Toasts collapse smoothly without absolute-positioned overlapping exits. Motion respects `prefers-reduced-motion`; existing board and Poker transitions are retained.
+
 ## Markdown task descriptions
 
 Task descriptions use shared `RichTextEditor` and `RichTextViewer` components with Tiptap 3, Vue 3 and the official `@tiptap/markdown` extension. The stored value is a Markdown string; daily reports and other text fields are unchanged. All task descriptions are interpreted as Markdown; no legacy-format migration is needed.

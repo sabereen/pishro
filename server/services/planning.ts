@@ -14,6 +14,7 @@ import {
 } from '../database/scrum'
 import { requireProject } from '../utils/auth'
 import { useDatabase } from '../utils/database'
+import { gravatarUrl } from '../utils/avatar'
 import { jsonValue } from '../utils/json'
 import { enumInput, integerInput, uuidInput } from '../utils/validation'
 import { lockProject, selectedTasks, updateTask } from './projects'
@@ -55,6 +56,7 @@ export async function pokerSnapshot(sessionId: string, userId: string): Promise<
         .select({
           id: users.id,
           name: users.name,
+          email: users.email,
           joinedAt: pokerParticipants.joinedAt,
           lastSeenAt: pokerParticipants.lastSeenAt,
         })
@@ -105,6 +107,7 @@ export async function pokerSnapshot(sessionId: string, userId: string): Promise<
           .map((person) => ({
             id: person.id,
             name: person.name,
+            avatarUrl: gravatarUrl(person.email),
             joined: Boolean(person.joinedAt),
             online: Boolean(person.lastSeenAt && Date.now() - person.lastSeenAt.getTime() < 25000),
             ignored: ignored.has(person.id),

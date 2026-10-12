@@ -15,6 +15,7 @@ import {
 } from '../database/scrum'
 import { useDatabase } from '../utils/database'
 import type { DatabaseTransaction } from '../utils/database'
+import { gravatarUrl } from '../utils/avatar'
 import { jsonValue } from '../utils/json'
 import { enumInput, integerInput, textInput, markdownInput, uuidInput } from '../utils/validation'
 
@@ -115,7 +116,7 @@ export async function projectOverview(
       return {
         project: jsonValue(project),
         role,
-        members,
+        members: members.map((member) => ({ ...member, avatarUrl: gravatarUrl(member.email) })),
         sprints: jsonValue(sprintRows),
         metrics,
         tasks: jsonValue(taskRows).map((task) => ({

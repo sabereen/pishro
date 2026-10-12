@@ -23,6 +23,10 @@ const ghostStyle = computed(() => drag.value ? {
   transform: `translate3d(${drag.value.x - drag.value.offsetX}px, ${drag.value.y - drag.value.offsetY}px, 0) scale(${drag.value.settling ? 1 : 1.025})`,
 } : {})
 
+function assigneeAvatar(task: Task) {
+  return props.project.members.find((member) => member.id === task.assigneeId)?.avatarUrl
+}
+
 function assignee(task: Task) {
   return props.project.members.find((member) => member.id === task.assigneeId)?.name ?? 'بدون مسئول'
 }
@@ -83,7 +87,7 @@ watch(() => props.project.tasks, () => {
           <Icon name="lucide:move" /> رها در: {{ statusLabels[column.status] }}
         </div>
         <TransitionGroup name="kanban-card" tag="div" class="relative space-y-3">
-          <KanbanTaskCard v-for="task in column.tasks" :key="task.id" :task="task" :assignee="assignee(task)"
+          <KanbanTaskCard v-for="task in column.tasks" :key="task.id" :task="task" :assignee="assignee(task)" :assignee-avatar="assigneeAvatar(task)"
             :instructions-id="instructionsId" :unavailable="blocked || (!!drag && drag.task.id !== task.id)" :moving="drag?.active && drag.task.id === task.id"
             @open="emit('open', $event)" @grab="grab" @handle-key="handleKey" />
         </TransitionGroup>
@@ -95,7 +99,7 @@ watch(() => props.project.tasks, () => {
     </div>
     <Teleport to="body">
       <div v-if="drag?.active" class="kanban-ghost" :class="{ 'kanban-ghost-keyboard': drag.pointerId === null, 'kanban-ghost-settling': drag.settling }" :style="ghostStyle" dir="rtl" aria-hidden="true">
-        <KanbanTaskCard :task="drag.task" :assignee="assignee(drag.task)" preview />
+        <KanbanTaskCard :task="drag.task" :assignee="assignee(drag.task)" :assignee-avatar="assigneeAvatar(drag.task)" preview />
       </div>
     </Teleport>
   </div>

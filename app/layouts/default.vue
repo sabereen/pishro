@@ -11,15 +11,15 @@ const { run } = useAction()
     <header class="border-b border-line bg-white">
       <div class="mx-auto max-w-6xl flex items-center justify-between gap-4 px-5 py-4 sm:px-8">
         <NuxtLink to="/" class="flex items-center gap-3 rounded-xl" aria-label="پیشرو، صفحه اصلی">
-          <img src="/pishro-icon.png" alt="" width="48" height="48" class="h-12 w-12 rounded-xl" />
+          <img src="/pishro-icon.png" alt="" width="48" height="48" class="h-10 w-10 rounded-xl sm:h-12 sm:w-12" />
           <span>
             <span class="block text-xl font-bold">پیشرو</span>
-            <span class="block text-xs text-muted">یک تیم، یک قدم جلوتر</span>
+            <span class="hidden text-xs text-muted sm:block">یک تیم، یک قدم جلوتر</span>
           </span>
         </NuxtLink>
-        <div v-if="user" class="flex items-center gap-4 text-sm">
-          <NuxtLink to="/projects" class="rounded-lg px-2 py-3">پروژه‌ها</NuxtLink>
-          <NuxtLink to="/profile" class="rounded-lg px-2 py-3">{{ user.name }}</NuxtLink>
+        <div v-if="user" class="flex items-center gap-2 text-sm sm:gap-4">
+          <NuxtLink to="/projects" class="rounded-lg px-1 py-3 text-xs sm:px-2 sm:text-sm">پروژه‌ها</NuxtLink>
+          <NuxtLink to="/profile" class="flex min-w-0 items-center gap-2 rounded-lg py-2" :aria-label="`حساب ${user.name}`"><UserAvatar :name="user.name" :src="user.avatarUrl" :size="36" /><span class="hidden max-w-36 truncate sm:block">{{ user.name }}</span></NuxtLink>
           <button class="h-11 w-11 rounded-xl hover:bg-canvas" aria-label="خروج از حساب" @click="run(logout)"><Icon name="lucide:log-out" aria-hidden="true" /></button>
         </div>
         <NuxtLink v-else to="/login" class="button-secondary text-sm">ورود به پیشرو</NuxtLink>

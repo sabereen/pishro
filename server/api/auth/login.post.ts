@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm'
+import { gravatarUrl } from '../../utils/avatar'
 import { users } from '../../database/scrum'
 import { checkPassword, passwordHash, startSession } from '../../utils/auth'
 import { useDatabase } from '../../utils/database'
@@ -27,5 +28,5 @@ export default defineEventHandler(async (event) => {
   if (!user || !valid) throw createError({ statusCode: 401, message: 'ایمیل یا رمز عبور درست نیست.' })
   attempts.delete(key)
   await startSession(event, user.id)
-  return { id: user.id, name: user.name, email: user.email }
+  return { id: user.id, name: user.name, email: user.email, avatarUrl: gravatarUrl(user.email) }
 })

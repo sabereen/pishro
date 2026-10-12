@@ -18,7 +18,7 @@ export type Member = PublicUser & { role: 'admin' | 'member' }
 export type TaskPickingSnapshot = {
   sprint: Sprint
   me: { id: string; admin: boolean }
-  members: Pick<Member, 'id' | 'name'>[]
+  members: Pick<Member, 'id' | 'name' | 'avatarUrl'>[]
   tasks: Pick<Task, 'id' | 'title' | 'point' | 'assigneeId' | 'revision'>[]
 }
 export type ProjectOverview = {
@@ -32,6 +32,7 @@ export type ProjectOverview = {
 export type DailyReport = JsonValue<InferSelectModel<typeof schema.dailyReports>> & {
   taskIds: string[]
   authorName: string
+  authorAvatarUrl: string
 }
 export type PokerSession = JsonValue<InferSelectModel<typeof schema.pokerSessions>>
 export type PokerSnapshot = {
@@ -40,6 +41,7 @@ export type PokerSnapshot = {
   participants: {
     id: string
     name: string
+    avatarUrl: string
     joined: boolean
     online: boolean
     ignored: boolean

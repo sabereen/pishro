@@ -4,6 +4,7 @@ import type { Task } from '#shared/models'
 const props = defineProps<{
   task: Task
   assignee: string
+  assigneeAvatar?: string
   instructionsId?: string
   unavailable?: boolean
   moving?: boolean
@@ -14,7 +15,6 @@ const emit = defineEmits<{
   grab: [event: PointerEvent, task: Task]
   handleKey: [event: KeyboardEvent, task: Task]
 }>()
-const initials = computed(() => props.assignee.trim().split(/\s+/u).slice(0, 2).map((part) => part[0]).join(''))
 const prLabels = { open: 'باز', draft: 'پیش‌نویس', merged: 'ادغام شده', closed: 'بسته' }
 </script>
 
@@ -44,9 +44,7 @@ const prLabels = { open: 'باز', draft: 'پیش‌نویس', merged: 'ادغا
     </div>
     <div class="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
       <div class="flex min-w-0 items-center gap-2">
-        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[11px] font-bold text-brand-700" aria-hidden="true">
-          <template v-if="task.assigneeId">{{ initials }}</template><Icon v-else name="lucide:user-round" class="text-sm" />
-        </span>
+        <UserAvatar :name="task.assigneeId ? assignee : ''" :src="assigneeAvatar" :size="32" />
         <span class="truncate text-xs text-muted">{{ assignee }}</span>
       </div>
       <span v-if="preview" class="drag-handle drag-handle-active" aria-hidden="true"><Icon name="lucide:grip-vertical" class="text-xl" /></span>

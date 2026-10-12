@@ -307,22 +307,24 @@ function canRedo() {
         {{ sourceMode ? 'ویرایش بصری' : 'Markdown' }}
       </button>
     </div>
-    <div v-if="showLink" class="flex flex-wrap items-center gap-2 border-b border-line p-3">
-      <label :for="linkId" class="sr-only">نشانی لینک</label>
-      <input
-        :id="linkId"
-        v-model="linkUrl"
-        class="field min-w-0 flex-1 text-left text-sm"
-        dir="ltr"
-        placeholder="https://…"
-        @keydown.enter.prevent="applyLink"
-        @keydown.esc.prevent="showLink = false"
-      />
-      <button type="button" class="button-secondary text-xs" @click="applyLink">
-        {{ linkUrl ? 'ثبت لینک' : 'حذف لینک' }}
-      </button>
-      <p v-if="linkError" class="w-full text-xs text-red-700" role="alert">{{ linkError }}</p>
-    </div>
+    <Transition name="ui-reveal">
+      <div v-if="showLink" class="flex flex-wrap items-center gap-2 border-b border-line p-3">
+        <label :for="linkId" class="sr-only">نشانی لینک</label>
+        <input
+          :id="linkId"
+          v-model="linkUrl"
+          class="field min-w-0 flex-1 text-left text-sm"
+          dir="ltr"
+          placeholder="https://…"
+          @keydown.enter.prevent="applyLink"
+          @keydown.esc.prevent="showLink = false"
+        />
+        <button type="button" class="button-secondary text-xs" @click="applyLink">
+          {{ linkUrl ? 'ثبت لینک' : 'حذف لینک' }}
+        </button>
+        <p v-if="linkError" class="w-full text-xs text-red-700" role="alert">{{ linkError }}</p>
+      </div>
+    </Transition>
     <textarea
       v-if="sourceMode"
       ref="sourceInput"

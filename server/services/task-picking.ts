@@ -4,6 +4,7 @@ import type { TaskPickingSnapshot } from '../../shared/models'
 import { projectMembers, sprints, users, workItems } from '../database/scrum'
 import { requireProject } from '../utils/auth'
 import { useDatabase } from '../utils/database'
+import { gravatarUrl } from '../utils/avatar'
 import { jsonValue } from '../utils/json'
 import { enumInput, integerInput, uuidInput } from '../utils/validation'
 import { lockProject, updateTask } from './projects'
@@ -21,7 +22,7 @@ export async function taskPickingSnapshot(
   return useDatabase().transaction(
     async (tx) => {
       const members = await tx
-        .select({ id: users.id, name: users.name, role: projectMembers.role })
+        .select({ id: users.id, name: users.name, email: users.email, role: projectMembers.role })
         .from(projectMembers)
         .innerJoin(users, eq(projectMembers.userId, users.id))
         .where(eq(projectMembers.projectId, projectId))
@@ -48,7 +49,7 @@ export async function taskPickingSnapshot(
       return {
         sprint: jsonValue(sprint),
         me: { id: userId, admin: me.role === 'admin' },
-        members: members.map(({ id, name }) => ({ id, name })),
+        members: members.map(({ id, name, email }) => ({ id, name, avatarUrl: gravatarUrl(email) })),
         tasks,
       }
     },

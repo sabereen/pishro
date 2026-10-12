@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { gravatarUrl } from '../../utils/avatar'
 import { users } from '../../database/scrum'
 import { passwordHash, startSession } from '../../utils/auth'
 import { useDatabase } from '../../utils/database'
@@ -24,5 +25,5 @@ export default defineEventHandler(async (event) => {
   }
   await startSession(event, user.id)
   setResponseStatus(event, 201)
-  return user
+  return { ...user, avatarUrl: gravatarUrl(user.email) }
 })

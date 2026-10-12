@@ -137,6 +137,7 @@ function startDrag(event: DragEvent, taskId: string) {
       </option>
     </select>
   </div>
+  <Transition name="ui-reveal">
   <div
     v-if="selected.length"
     class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand-100 bg-brand-50 p-3"
@@ -212,6 +213,7 @@ function startDrag(event: DragEvent, taskId: string) {
       >برآورد با تیم<Icon name="lucide:arrow-left" aria-hidden="true"
     /></NuxtLink>
   </div>
+  </Transition>
   <div v-if="visible.length" class="panel overflow-x-auto">
     <table class="w-full min-w-190 text-right text-sm">
       <thead class="border-b border-line bg-canvas text-xs text-muted">

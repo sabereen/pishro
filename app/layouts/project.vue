@@ -33,7 +33,7 @@ async function switchProject(event: Event) {
         <NuxtLink v-for="item in items" :key="item.path" :to="`/projects/${id}/${item.path}`" class="flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-sm transition-colors" :class="active?.path === item.path ? 'bg-brand-50 font-bold text-brand-700' : 'text-muted hover:bg-canvas'" :aria-current="active?.path === item.path ? 'page' : undefined"><Icon :name="item.icon" class="text-lg" aria-hidden="true" />{{ item.title }}</NuxtLink>
       </nav>
       <div class="mt-auto hidden border-t border-line p-4 lg:block">
-        <NuxtLink to="/profile" class="flex items-center gap-3 rounded-xl p-2"><span class="h-10 w-10 flex items-center justify-center rounded-xl bg-canvas font-bold">{{ user?.name.slice(0, 1) }}</span><span class="min-w-0"><span class="block truncate text-sm font-bold">{{ user?.name }}</span><span class="text-xs text-muted">حساب کاربری</span></span></NuxtLink>
+        <NuxtLink to="/profile" class="flex items-center gap-3 rounded-xl p-2"><UserAvatar :name="user?.name" :src="user?.avatarUrl" /><span class="min-w-0"><span class="block truncate text-sm font-bold">{{ user?.name }}</span><span class="text-xs text-muted">حساب کاربری</span></span></NuxtLink>
         <div class="mt-3 flex items-center justify-between"><NuxtLink to="/projects" class="rounded-lg p-2 text-xs text-muted">همه پروژه‌ها</NuxtLink><button class="h-11 w-11 rounded-lg text-muted hover:bg-canvas" aria-label="خروج" @click="run(logout)"><Icon name="lucide:log-out" aria-hidden="true" /></button></div>
       </div>
     </aside>
@@ -41,9 +41,9 @@ async function switchProject(event: Event) {
       <header class="relative flex flex-wrap items-center justify-between gap-4 border-b border-line bg-white px-5 py-4 sm:px-8">
         <p class="text-sm text-muted"><span class="font-bold text-ink">{{ project?.project.name }}</span><span class="mx-2">/</span>{{ active?.title }}</p>
         <div class="flex items-center gap-3">
-          <div class="relative hidden sm:block"><label class="sr-only" for="task-search">جست‌وجوی کارها</label><input id="task-search" v-model="search" class="field w-55 py-2 text-sm" placeholder="جست‌وجوی کارها…" type="search" @keydown.esc="search = ''" /><div v-if="search.trim()" class="panel absolute left-0 top-full z-30 mt-2 w-80 p-2"><button v-for="task in matches" :key="task.id" class="block w-full rounded-lg px-3 py-3 text-right text-sm hover:bg-canvas" @click="openTask(task.id)">{{ task.title }}</button><p v-if="!matches.length" class="p-4 text-sm text-muted">کاری با این عنوان پیدا نشد.</p></div></div>
+          <div class="relative hidden sm:block"><label class="sr-only" for="task-search">جست‌وجوی کارها</label><input id="task-search" v-model="search" class="field w-55 py-2 text-sm" placeholder="جست‌وجوی کارها…" type="search" @keydown.esc="search = ''" /><Transition name="ui-popover"><div v-if="search.trim()" class="panel absolute left-0 top-full z-30 mt-2 w-80 p-2"><button v-for="task in matches" :key="task.id" class="block w-full rounded-lg px-3 py-3 text-right text-sm hover:bg-canvas" @click="openTask(task.id)">{{ task.title }}</button><p v-if="!matches.length" class="p-4 text-sm text-muted">کاری با این عنوان پیدا نشد.</p></div></Transition></div>
           <button class="button-primary py-2 text-sm" @click="openTask(null)"><Icon name="lucide:plus" aria-hidden="true" /> کار جدید</button>
-          <NuxtLink to="/profile" class="h-11 w-11 flex items-center justify-center rounded-xl bg-canvas text-sm font-bold lg:hidden" aria-label="حساب کاربری">{{ user?.name.slice(0, 1) }}</NuxtLink>
+          <NuxtLink to="/profile" class="h-11 w-11 flex items-center justify-center rounded-full lg:hidden" :aria-label="`حساب ${user?.name ?? ''}`"><UserAvatar :name="user?.name" :src="user?.avatarUrl" :size="36" /></NuxtLink>
         </div>
       </header>
       <main id="main" class="mx-auto max-w-[1600px] px-4 py-6 sm:px-8">

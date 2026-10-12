@@ -13,9 +13,9 @@ const today = todayInTehran()
 const days = computed(() => sprint.value ? datesBetween(sprint.value.startDate, sprint.value.endDate).filter((date) => isWorkingDay(date, sprint.value!.workingDays)) : [])
 const { data: reports, error: loadError, refresh } = await useFetch<DailyReport[]>(`/api/projects/${id}/daily`, { query: { sprintId: selectedId }, immediate: Boolean(selectedId.value), watch: false })
 const matrixMembers = computed(() => {
-  const members = (project.value?.members ?? []).map((member) => ({ id: member.id, name: member.name, former: false }))
+  const members = (project.value?.members ?? []).map((member) => ({ id: member.id, name: member.name, avatarUrl: member.avatarUrl, former: false }))
   for (const report of reports.value ?? []) {
-    if (!members.some((member) => member.id === report.userId)) members.push({ id: report.userId, name: report.authorName, former: true })
+    if (!members.some((member) => member.id === report.userId)) members.push({ id: report.userId, name: report.authorName, avatarUrl: report.authorAvatarUrl, former: true })
   }
   return members
 })
@@ -84,7 +84,7 @@ const number = (value: number) => value.toLocaleString('fa-IR', { maximumFractio
           <tbody>
             <tr v-for="member in matrixMembers" :key="member.id" class="border-t border-line">
               <th class="sticky right-0 z-10 bg-white px-4 py-3 text-right font-medium">
-                {{ member.name }}
+                <span class="inline-flex items-center gap-2"><UserAvatar :name="member.name" :src="member.avatarUrl" :size="28" /><span>{{ member.name }}</span></span>
                 <span v-if="member.former" class="mr-1 text-xs text-muted">(عضو پیشین)</span>
                 <span v-else-if="member.id === user?.id" class="mr-1 text-xs text-muted">(شما)</span>
               </th>

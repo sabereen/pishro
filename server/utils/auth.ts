@@ -3,6 +3,7 @@ import { and, eq, gt } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { authSessions, projectMembers, users } from '../database/scrum'
 import { useDatabase } from './database'
+import { gravatarUrl } from './avatar'
 import { uuidInput } from './validation'
 
 function derive(password: string, salt: string) {
@@ -47,7 +48,7 @@ export async function currentUser(event: H3Event) {
   const [user] = await useDatabase().select({ id: users.id, name: users.name, email: users.email })
     .from(authSessions).innerJoin(users, eq(authSessions.userId, users.id))
     .where(and(eq(authSessions.tokenHash, hashToken(token)), gt(authSessions.expiresAt, new Date()))).limit(1)
-  return user ?? null
+  return user ? { ...user, avatarUrl: gravatarUrl(user.email) } : null
 }
 
 export async function requireUser(event: H3Event) {

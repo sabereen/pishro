@@ -7,7 +7,7 @@ export const statusLabels = { todo: 'برای انجام', in_progress: 'در ح
 export const pokerLabels = { draft: 'پیش‌نویس', lobby: 'لابی', voting: 'رأی‌گیری', reveal: 'گفت‌وگو', review: 'بازبینی تخمین‌ها', finalized: 'نهایی شده' }
 export type TaskStatus = (typeof taskStatuses)[number]
 export type ProjectSettings = { duration: number; workingDays: number[]; cards: string[]; repository: string }
-export type PublicUser = { id: string; name: string; email: string }
+export type PublicUser = { id: string; name: string; email: string; avatarUrl: string }
 export type SprintMetrics = {
   done: number; total: number; expected: number; delta: number; remaining: number
   added: number; day: number; days: number

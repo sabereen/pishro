@@ -4,7 +4,7 @@ import type { TaskPickingSnapshot } from '#shared/models'
 const props = defineProps<{ snapshot: TaskPickingSnapshot; busy: boolean }>()
 const emit = defineEmits<{ action: [action: 'pick' | 'release', taskId: string] }>()
 const columns = computed(() =>
-  [{ id: null, name: 'انتخاب‌نشده' }, ...props.snapshot.members].map((member) => {
+  [{ id: null, name: 'انتخاب‌نشده', avatarUrl: undefined }, ...props.snapshot.members].map((member) => {
     const tasks = props.snapshot.tasks.filter((task) => task.assigneeId === member.id)
     return { ...member, tasks, points: tasks.reduce((sum, task) => sum + (task.point ?? 0), 0) }
   }),
@@ -39,13 +39,8 @@ const summary = computed(() => {
       :aria-label="column.name"
     >
       <div class="mb-3 flex items-start gap-3 px-1 py-2">
-        <span
-          class="h-10 w-10 flex shrink-0 items-center justify-center rounded-xl bg-white font-bold"
-          aria-hidden="true"
-          ><Icon v-if="column.id === null" name="lucide:list-todo" /><template v-else>{{
-            column.name.slice(0, 1)
-          }}</template></span
-        >
+        <UserAvatar v-if="column.id" :name="column.name" :src="column.avatarUrl" />
+        <span v-else class="h-10 w-10 flex shrink-0 items-center justify-center rounded-xl bg-white text-muted" aria-hidden="true"><Icon name="lucide:list-todo" /></span>
         <div class="min-w-0">
           <h3 class="break-words text-sm font-bold leading-7">
             {{ column.name
