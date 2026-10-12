@@ -4,6 +4,33 @@ import { datesBetween, isWorkingDay, persianDate, todayInTehran } from '#shared/
 definePageMeta({ layout: 'project', middleware: 'auth', key: (route) => route.path })
 const { data: project } = await useProject()
 const id = String(useRoute().params.projectId)
+const { user } = useAuth()
+const onlyMine = ref(false)
+const filterReady = ref(false)
+const filterKey = computed(() =>
+  user.value ? `pishro:sprint:only-mine:${user.value.id}` : null,
+)
+function restoreFilter() {
+  onlyMine.value = false
+  if (!filterKey.value) return
+  try {
+    onlyMine.value = localStorage.getItem(filterKey.value) === 'true'
+  } catch {}
+}
+onMounted(() => {
+  restoreFilter()
+  filterReady.value = true
+})
+watch(
+  () => user.value?.id,
+  () => { if (filterReady.value) restoreFilter() },
+)
+watch(onlyMine, (value) => {
+  if (!filterReady.value || !filterKey.value) return
+  try {
+    localStorage.setItem(filterKey.value, String(value))
+  } catch {}
+})
 const selectedId = ref(
   project.value?.sprints.find((item) => item.status === 'active')?.id ??
     project.value?.sprints.at(-1)?.id ??
@@ -144,13 +171,49 @@ function openTask(id: string) {
         </div>
       </div>
       <SprintChart :metrics="metrics" />
-      <div class="mb-5 mt-8 flex items-center justify-between">
+      <div class="mb-5 mt-8 flex flex-wrap items-center justify-between gap-3">
         <h2 class="text-lg font-bold">تابلوی تیم</h2>
-        <NuxtLink :to="`/projects/${id}/backlog`" class="text-sm text-brand-700"
-          >مدیریت کارها در بک‌لاگ<Icon name="lucide:arrow-left" class="mr-1" aria-hidden="true"
-        /></NuxtLink>
+        <div class="flex flex-wrap items-center gap-4">
+          <button
+            type="button"
+            role="switch"
+            :aria-checked="onlyMine"
+            :disabled="!filterReady"
+            class="flex min-h-11 items-center gap-3 rounded-lg text-sm transition-colors hover:text-brand-700 disabled:opacity-50"
+            @click="onlyMine = !onlyMine"
+          >
+            <span>فقط کارهای من</span>
+            <span
+              class="relative h-6 w-11 shrink-0 rounded-full transition-colors duration-150"
+              :class="onlyMine ? 'bg-brand-600' : 'bg-slate-300'"
+              dir="ltr"
+              aria-hidden="true"
+            >
+              <span
+                class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-150"
+                :class="onlyMine ? 'translate-x-5' : ''"
+              />
+            </span>
+          </button>
+          <NuxtLink :to="`/projects/${id}/backlog`" class="text-sm text-brand-700"
+            >مدیریت کارها در بک‌لاگ<Icon name="lucide:arrow-left" class="mr-1" aria-hidden="true"
+          /></NuxtLink>
+        </div>
       </div>
-      <KanbanBoard :project="project" :sprint-id="sprint.id" @open="openTask" />
+      <KanbanBoard
+        v-if="filterReady"
+        :project="project"
+        :sprint-id="sprint.id"
+        :only-mine="onlyMine"
+        @open="openTask"
+      />
+      <div
+        v-else
+        class="min-h-80 rounded-2xl bg-canvas"
+        role="status"
+        aria-busy="true"
+        aria-label="در حال آماده‌سازی بورد"
+      />
     </template>
   </template>
   <EmptyState

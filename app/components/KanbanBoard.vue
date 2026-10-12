@@ -4,9 +4,10 @@ import type { ProjectOverview, Task } from '#shared/models'
 import type { TaskStatus } from '#shared/scrum'
 import { statusLabels, taskStatuses } from '#shared/scrum'
 
-const props = defineProps<{ project: ProjectOverview; sprintId: string }>()
+const props = defineProps<{ project: ProjectOverview; sprintId: string; onlyMine?: boolean }>()
 const emit = defineEmits<{ open: [id: string] }>()
 const { busy, run } = useAction()
+const { user } = useAuth()
 const board = shallowRef<HTMLElement | null>(null)
 const instructionsId = useId()
 const pending = shallowRef<{ id: string; status: TaskStatus } | null>(null)
@@ -14,7 +15,7 @@ const blocked = computed(() => busy.value || pending.value !== null)
 const colors = { todo: 'bg-slate-400', in_progress: 'bg-blue-500', review: 'bg-amber-500', done: 'bg-brand-500' }
 const icons = { todo: 'lucide:circle-dashed', in_progress: 'lucide:circle-dot', review: 'lucide:scan-eye', done: 'lucide:circle-check' }
 const items = computed(() => props.project.tasks
-  .filter((task) => task.sprintId === props.sprintId)
+  .filter((task) => task.sprintId === props.sprintId && (!props.onlyMine || task.assigneeId === user.value?.id))
   .map((task) => pending.value?.id === task.id ? { ...task, status: pending.value.status } : task))
 const columns = computed(() => taskStatuses.map((status) => ({ status, tasks: items.value.filter((task) => task.status === status) })))
 const { drag, announcement, grab, handleKey, cancel } = useKanbanDrag({ board, blocked, move: change })
@@ -56,6 +57,7 @@ async function change(id: string, status: TaskStatus) {
   return success
 }
 
+watch([() => props.onlyMine, () => user.value?.id], () => cancel())
 watch([() => props.project.project.id, () => props.sprintId], () => { cancel(); pending.value = null })
 watch(() => props.project.tasks, () => {
   const update = pending.value
