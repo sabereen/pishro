@@ -29,6 +29,8 @@ const form = reactive({
 })
 const prUrl = ref('')
 const revision = ref(0)
+const descriptionValid = ref(true)
+const editingDescription = ref(false)
 const { busy, run } = useAction()
 watch(
   () => [open.value, props.taskId],
@@ -46,10 +48,13 @@ watch(
       priority: item?.priority ?? 'normal',
     })
     prUrl.value = ''
+    descriptionValid.value = true
+    editingDescription.value = !item?.description
   },
   { immediate: true },
 )
 async function save() {
+  if (!descriptionValid.value) return
   await run(
     async () => {
       const body = {
@@ -104,14 +109,30 @@ async function removePr(id: string) {
       <label class="block text-sm font-bold"
         >عنوان<input v-model="form.title" class="field mt-2" required maxlength="240" autofocus
       /></label>
-      <label class="block text-sm"
-        >توضیحات<textarea
+      <section>
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <h3 class="text-sm">توضیحات</h3>
+          <button
+            type="button"
+            class="min-h-9 rounded-lg px-2 text-xs font-bold text-brand-700 hover:bg-canvas"
+            :aria-pressed="editingDescription"
+            @click="editingDescription = !editingDescription"
+          >
+            {{ editingDescription ? 'نمایش متن' : 'ویرایش توضیحات' }}
+          </button>
+        </div>
+        <LazyRichTextEditor
+          v-if="editingDescription"
+          :key="taskId ?? 'new'"
           v-model="form.description"
-          class="field mt-2 min-h-30 resize-y leading-8"
-          maxlength="10000"
+          label="توضیحات کار"
+          :maxlength="10000"
+          :disabled="busy"
           placeholder="تیم برای انجام این کار چه چیزی باید بداند؟"
+          @validity="descriptionValid = $event"
         />
-      </label>
+        <RichTextViewer v-else :content="form.description" />
+      </section>
       <div class="grid grid-cols-2 gap-4">
         <label class="text-sm"
           >وضعیت<select v-model="form.status" class="field mt-2">
@@ -170,7 +191,7 @@ async function removePr(id: string) {
           </option>
         </select></label
       >
-      <button class="button-primary w-full" :disabled="busy">
+      <button class="button-primary w-full" :disabled="busy || !descriptionValid">
         {{ busy ? 'در حال ذخیره…' : taskId ? 'ذخیره تغییرات' : 'افزودن کار' }}
       </button>
     </form>

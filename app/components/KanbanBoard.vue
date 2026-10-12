@@ -7,7 +7,7 @@ import { statusLabels, taskStatuses } from '#shared/scrum'
 const props = defineProps<{ project: ProjectOverview; sprintId: string }>()
 const emit = defineEmits<{ open: [id: string] }>()
 const { busy, run } = useAction()
-const board = ref<HTMLElement | null>(null)
+const board = shallowRef<HTMLElement | null>(null)
 const instructionsId = useId()
 const pending = shallowRef<{ id: string; status: TaskStatus } | null>(null)
 const blocked = computed(() => busy.value || pending.value !== null)

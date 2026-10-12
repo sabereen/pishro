@@ -13,11 +13,19 @@
     "format:check": "oxfmt --check .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "test:integration": "node --test tests/task-picking.test.mjs"
+    "test:integration": "node --test tests/task-picking.test.mjs",
+    "test:editor": "node --test tests/rich-text.test.ts"
   },
   "dependencies": {
     "@nuxt/icon": "^2.5.1",
+    "@tiptap/core": "^3.31.4",
+    "@tiptap/extension-paragraph": "^3.31.4",
+    "@tiptap/markdown": "^3.31.4",
+    "@tiptap/pm": "^3.31.4",
+    "@tiptap/starter-kit": "^3.31.4",
+    "@tiptap/vue-3": "^3.31.4",
     "drizzle-orm": "^0.45.4",
+    "marked": "^17.0.6",
     "mysql2": "^3.24.5",
     "nuxt": "^4.6.1",
     "vue": "^3.5.43",

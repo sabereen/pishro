@@ -104,6 +104,20 @@ Task Picking was verified against an isolated MySQL 8.4 database with the commit
 
 The integration suite creates test accounts, a project, a sprint, and tasks. Run it only with a disposable migrated database and a running Nuxt server. It skips when `TASK_PICKING_TEST_URL` is unset. No production migration or data changes are needed for Task Picking.
 
+## Markdown task descriptions
+
+Task descriptions use shared `RichTextEditor` and `RichTextViewer` components with Tiptap 3, Vue 3 and the official `@tiptap/markdown` extension. The stored value is a Markdown string; daily reports and other text fields are unchanged. All task descriptions are interpreted as Markdown; no legacy-format migration is needed.
+
+The drawer displays descriptions with the viewer and opens the editor on request. The editor supports bold, italic, headings, nested bullet/numbered lists, quotes, links, inline/block code, undo/redo and standard Tiptap shortcuts. Source mode preserves the exact supplied string, including indentation and trailing spaces. Opening the editor or switching modes does not rewrite stored Markdown. Visual edits serialize the supported document structure to canonical Markdown (for example, list spacing or emphasis delimiters may normalize).
+
+`app/utils/rich-text.ts` owns parsing, serialization, direction normalization, extensions and safe rendering. Auto uses `dir="auto"` and no storage marker. Explicit RTL/LTR uses one U+200F RLM / U+200E LRM at the start of a text block's content, after Markdown syntax (`## `, `- `, `1. `, `> `). Parsing and paste normalization remove leading markers from editable text and set block attributes; list items and quotes follow their first text block, while each nested paragraph has its own direction. Code blocks always use LTR and preserve their code verbatim. ZWNJ is never transformed. No isolate markers are generated.
+
+`useEditor` creates and destroys Tiptap on the client lifecycle. Before mounting, the editor renders the same safe viewer on the server and client. The viewer renders a whitelist of Vue elements and escapes text, with no `v-html`; raw HTML is literal text and unsafe link protocols are rejected. Marked is Tiptap's existing parser dependency, configured directly to disable raw HTML and unsupported table/strikethrough interpretation. A small extension to the official Paragraph serializer escapes literal block prefixes so text such as `# title` cannot become a heading after saving.
+
+Descriptions retain the 10,000-character limit on the client and server. Server validation checks the complete string without trimming meaningful Markdown whitespace. Project membership, authentication and revision checks remain enforced by the existing task APIs. No schema or database migration is required.
+
+Run `pnpm test:editor` for the Node/ProseMirror/SSR regression tests. They cover Auto/RTL/LTR, mixed Persian/English and ZWNJ, nested lists and quotes, headings, repeated direction changes, pasted metadata, code, round trips, literal syntax, XSS and server length validation. Browser checks additionally exercised actual SSR/hydration, source switching, shortcuts, paste, length limits, responsive widths and the drawer's save payload. The existing Task Picking integration suite still requires a disposable database and `TASK_PICKING_TEST_URL`.
+
 ## Source layout
 
 ```text
