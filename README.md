@@ -154,3 +154,7 @@ drizzle/            SQL migrations and Drizzle generation metadata
 docs/               Supplied product specification
 public/fonts/       Estedad variable WOFF2 and OFL license
 ```
+
+## Automatic production deployment
+
+See [the production deployment guide](docs/production-deployment.md).

@@ -1,0 +1,78 @@
+name: Deploy production artifact
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-pishro
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'sabereen/pishro' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Require deployment credential
+        env:
+          ARTIFACT_DEPLOY_SSH_KEY: ${{ secrets.ARTIFACT_DEPLOY_SSH_KEY }}
+        run: |
+          if [[ -z "$ARTIFACT_DEPLOY_SSH_KEY" ]]; then
+            echo "Missing ARTIFACT_DEPLOY_SSH_KEY repository secret." >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: '11.25.0'
+          run_install: false
+          cache: true
+
+      - name: Install build dependencies on GitHub
+        run: pnpm install --frozen-lockfile
+
+      - name: Build production output
+        run: pnpm build
+
+      - name: Bundle the production migration runner
+        run: pnpm --package=esbuild@0.28.2 dlx esbuild deploy/migrate.ts --bundle --platform=node --format=cjs --target=node24 --outfile=.output/deploy/migrate.cjs
+
+      - name: Package the deployment artifact
+        run: node scripts/package-deployment.ts
+
+      - name: Deploy the completed artifact
+        shell: bash
+        env:
+          ARTIFACT_DEPLOY_SSH_KEY: ${{ secrets.ARTIFACT_DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          artifact_directory="$(mktemp -d "$RUNNER_TEMP/production-deploy.XXXXXX")"
+          trap 'rm -rf -- "$artifact_directory"' EXIT
+          printf '%s\n' "$ARTIFACT_DEPLOY_SSH_KEY" | tr -d '\r' > "$artifact_directory/id_ed25519"
+          tar --dereference --hard-dereference -czf "$artifact_directory/output.tar.gz" -C .output .
+          ssh -T \
+            -i "$artifact_directory/id_ed25519" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" \
+            -o ConnectTimeout=20 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=3 \
+            mojtaba@87.248.153.207 "deploy $GITHUB_SHA" \
+            < "$artifact_directory/output.tar.gz"
