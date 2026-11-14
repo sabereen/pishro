@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Task } from '#shared/models'
-import { pointValues, statusLabels } from '#shared/scrum'
+import { pointValues, statusLabels, taskStatuses } from '#shared/scrum'
 
 definePageMeta({ layout: 'project', middleware: 'auth', key: (route) => route.path })
 const { data: project } = await useProject()
@@ -20,7 +20,12 @@ const { busy, run } = useAction()
 const title = ref('')
 const quickInput = ref<HTMLInputElement>()
 const search = ref('')
-const sprintFilter = ref('all')
+const sprintFilter = ref('open')
+const statusFilter = ref('all')
+const unestimatedOnly = ref(false)
+const openSprints = computed(() => project.value?.sprints.filter((sprint) => sprint.status !== 'completed') ?? [])
+const completedSprints = computed(() => project.value?.sprints.filter((sprint) => sprint.status === 'completed') ?? [])
+const hasFilters = computed(() => search.value !== '' || sprintFilter.value !== 'open' || statusFilter.value !== 'all' || unestimatedOnly.value)
 const selected = ref<string[]>([])
 const drawer = ref(false)
 const selectedTask = ref<string | null>(null)
@@ -29,14 +34,32 @@ const visible = computed(
   () =>
     project.value?.tasks.filter(
       (task) =>
-        task.title.toLocaleLowerCase().includes(search.value.toLocaleLowerCase()) &&
+        task.title.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase()) &&
+        (statusFilter.value === 'all' || task.status === statusFilter.value) &&
+        (!unestimatedOnly.value || task.point === null) &&
         (sprintFilter.value === 'all' ||
-          (sprintFilter.value === 'none' ? !task.sprintId : task.sprintId === sprintFilter.value)),
+          (sprintFilter.value === 'open'
+            ? !completedSprints.value.some((sprint) => sprint.id === task.sprintId)
+            : sprintFilter.value === 'none'
+              ? !task.sprintId
+              : task.sprintId === sprintFilter.value)),
     ) ?? [],
 )
 const allSelected = computed(
   () => visible.value.length > 0 && visible.value.every((task) => selected.value.includes(task.id)),
 )
+
+// Bulk actions only apply to tasks still visible after a filter change.
+watch(visible, (tasks) => {
+  const ids = new Set(tasks.map((task) => task.id))
+  selected.value = selected.value.filter((id) => ids.has(id))
+})
+function resetFilters() {
+  search.value = ''
+  sprintFilter.value = 'open'
+  statusFilter.value = 'all'
+  unestimatedOnly.value = false
+}
 
 async function create() {
   if (!title.value.trim()) return
@@ -122,7 +145,7 @@ function startDrag(event: DragEvent, taskId: string) {
       افزودن
     </button>
   </form>
-  <div class="mb-4 flex flex-wrap gap-3">
+  <div class="mb-3 flex flex-wrap items-center gap-3">
     <input
       v-model="search"
       class="field max-w-xs text-sm"
@@ -130,13 +153,26 @@ function startDrag(event: DragEvent, taskId: string) {
       placeholder="پیدا کردن کار…"
       aria-label="جست‌وجو در بک‌لاگ"
     /><select v-model="sprintFilter" class="field w-auto text-sm" aria-label="فیلتر اسپرینت">
-      <option value="all">همه اسپرینت‌ها</option>
-      <option value="none">بدون اسپرینت</option>
-      <option v-for="sprint in project?.sprints" :key="sprint.id" :value="sprint.id">
-        {{ sprint.name }}
-      </option>
+      <option value="open">اسپرینت‌های باز و بدون اسپرینت</option>
+      <option value="none">فقط بدون اسپرینت</option>
+      <option value="all">همه، شامل اسپرینت‌های بسته‌شده</option>
+      <optgroup v-if="openSprints.length" label="اسپرینت‌های باز">
+        <option v-for="sprint in openSprints" :key="sprint.id" :value="sprint.id">{{ sprint.name }}</option>
+      </optgroup>
+      <optgroup v-if="completedSprints.length" label="اسپرینت‌های بسته‌شده">
+        <option v-for="sprint in completedSprints" :key="sprint.id" :value="sprint.id">{{ sprint.name }} · بسته‌شده</option>
+      </optgroup>
     </select>
+    <select v-model="statusFilter" class="field w-auto text-sm" aria-label="فیلتر وضعیت کار">
+      <option value="all">همه وضعیت‌ها</option>
+      <option v-for="status in taskStatuses" :key="status" :value="status">{{ statusLabels[status] }}</option>
+    </select>
+    <label class="flex min-h-11 items-center gap-2 rounded-lg border border-line bg-white px-3 text-sm">
+      <input v-model="unestimatedOnly" type="checkbox" class="h-4 w-4 accent-brand-600" /> فقط بدون تخمین
+    </label>
+    <button v-if="hasFilters" class="min-h-11 px-3 text-xs text-brand-700" @click="resetFilters">بازنشانی فیلترها</button>
   </div>
+  <p class="mb-4 text-xs leading-7 text-muted" role="status">{{ sprintFilter === 'open' ? 'کارهای اسپرینت‌های بسته‌شده پنهان‌اند؛ برای دیدن آن‌ها فیلتر اسپرینت را تغییر دهید.' : `${visible.length.toLocaleString('fa-IR')} کار مطابق فیلترها` }}</p>
   <Transition name="ui-reveal">
   <div
     v-if="selected.length"
@@ -222,6 +258,7 @@ function startDrag(event: DragEvent, taskId: string) {
             <input
               type="checkbox"
               :checked="allSelected"
+              :indeterminate="selected.length > 0 && !allSelected"
               class="h-4 w-4 accent-brand-600"
               aria-label="انتخاب همه کارهای نمایش‌داده‌شده"
               @change="toggleAll"
@@ -383,8 +420,8 @@ function startDrag(event: DragEvent, taskId: string) {
   <EmptyState
     v-else
     :title="project?.tasks.length ? 'کاری با این فیلتر پیدا نشد' : 'اولین کار تیم را بنویسید'"
-    description="از ورودی بالای صفحه برای افزودن سریع کار استفاده کنید."
+    :description="project?.tasks.length ? 'فیلترها را تغییر دهید یا به نمای پیش‌فرض برگردید.' : 'از ورودی بالای صفحه برای افزودن سریع کار استفاده کنید.'"
     icon="lucide:list-plus"
-  />
+  ><button v-if="hasFilters" class="button-secondary" @click="resetFilters">بازنشانی فیلترها</button></EmptyState>
   <TaskDrawer v-if="project" v-model="drawer" :project="project" :task-id="selectedTask" />
 </template>
