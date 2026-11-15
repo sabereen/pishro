@@ -13,7 +13,10 @@ export default defineEventHandler(async (event) => {
   let timer: ReturnType<typeof setTimeout> | undefined
   let previous = ''
   let heartbeatAt = 0
-  stream.onClosed(() => { closed = true; clearTimeout(timer) })
+  stream.onClosed(() => {
+    closed = true
+    clearTimeout(timer)
+  })
 
   async function tick() {
     if (closed) return
@@ -22,8 +25,15 @@ export default defineEventHandler(async (event) => {
       if (heartbeat) {
         await requireUser(event)
         const now = new Date()
-        await db.update(pokerParticipants).set({ joinedAt: sql`coalesce(${pokerParticipants.joinedAt}, CURRENT_TIMESTAMP)`, lastSeenAt: now })
-          .where(and(eq(pokerParticipants.sessionId, sessionId), eq(pokerParticipants.userId, user.id)))
+        await db
+          .update(pokerParticipants)
+          .set({
+            joinedAt: sql`coalesce(${pokerParticipants.joinedAt}, CURRENT_TIMESTAMP)`,
+            lastSeenAt: now,
+          })
+          .where(
+            and(eq(pokerParticipants.sessionId, sessionId), eq(pokerParticipants.userId, user.id)),
+          )
         heartbeatAt = Date.now()
       }
       const snapshot = JSON.stringify(await pokerSnapshot(sessionId, user.id))
@@ -32,12 +42,21 @@ export default defineEventHandler(async (event) => {
         await stream.push({ event: 'snapshot', data: snapshot })
         previous = snapshot
       } else if (heartbeat) await stream.push({ event: 'heartbeat', data: '{}' })
-    } catch {
+    } catch (cause) {
+      const status =
+        cause && typeof cause === 'object' && 'statusCode' in cause ? cause.statusCode : null
+      if (!closed && (status === 401 || status === 403))
+        await stream.push({ event: 'access-ended', data: '{}' }).catch(() => {})
       if (!closed) await stream.close().catch(() => {})
       return
     }
-    if (!closed) timer = setTimeout(() => { void tick() }, 1000)
+    if (!closed)
+      timer = setTimeout(() => {
+        void tick()
+      }, 1000)
   }
-  timer = setTimeout(() => { void tick() }, 0)
+  timer = setTimeout(() => {
+    void tick()
+  }, 0)
   return stream.send()
 })

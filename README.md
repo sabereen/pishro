@@ -158,3 +158,13 @@ public/fonts/       Estedad variable WOFF2 and OFL license
 ## Automatic production deployment
 
 See [the production deployment guide](docs/production-deployment.md).
+
+## Free Poker sessions and live participants
+
+Choose **برآورد کارها** for task estimates or **جلسه آزاد** for repeated voting without tasks or sprint selection. Free sessions keep only the current round in shared MySQL state for live clients and reconnects. Votes stay private until everyone votes; numeric cards, `?` and coffee are then displayed. Reset clears all current votes and starts a new round; finishing clears the round entirely. Free sessions never create task estimates, vote history or estimate history, and never change task points.
+
+The facilitator can add or remove project members from any open session using **مدیریت اعضا**, including inside the voting screen's **تیم و مسیر** drawer. The facilitator remains present and the 50-person limit still applies. Adding during voting includes the person in the current round; adding after reveal waits for the next round. Removing someone revokes session access and their SSE stream, excludes their current vote, and can reveal the remaining completed votes. Project membership is unchanged. Task sessions preserve earlier rounds and accepted estimates. Transactions recheck invitations under the project/session locks so an in-flight request cannot vote after removal.
+
+Apply committed migration `0004_free_poker_sessions` before this release. It adds a mode with the existing task behavior as default and a nullable current free round; existing sessions and history are preserved. The production deployment workflow runs committed migrations before publishing the artifact.
+
+Run `POKER_SESSIONS_TEST_URL=http://localhost:3000 pnpm test:poker-sessions` only with a disposable migrated database and running server. It covers free creation, access control, live membership, hidden votes, concurrent voting, stale round/revision rejection, repeated reset, special cards, SSE revocation, finish and task-session history. Browser checks use three Chromium clients and widths 320, 375, 768 and 1440.
