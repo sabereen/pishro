@@ -110,6 +110,8 @@ export const pokerSessions = mysqlTable('poker_sessions', {
   id: id(), projectId: varchar('project_id', { length: 36 }).notNull().references(() => projects.id, { onDelete: 'cascade' }),
   sprintId: varchar('sprint_id', { length: 36 }), name: varchar('name', { length: 120 }).notNull(),
   facilitatorId: varchar('facilitator_id', { length: 36 }).notNull().references(() => users.id),
+  mode: mysqlEnum('mode', ['tasks', 'free']).notNull().default('tasks'),
+  freeRound: json('free_round').$type<{ round: number; votes: Record<string, string> }>(),
   status: mysqlEnum('status', pokerStates).notNull().default('draft'),
   activePosition: int('active_position', { unsigned: true }).notNull().default(0),
   revision: int('revision', { unsigned: true }).notNull().default(0), cards: json('cards').$type<string[]>().notNull(), createdAt: createdAt(),

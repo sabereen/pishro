@@ -46,8 +46,9 @@ export async function pokerSnapshot(sessionId: string, userId: string): Promise<
       const [session] = await tx.select().from(pokerSessions).where(eq(pokerSessions.id, sessionId))
       if (!session) throw createError({ statusCode: 404, message: 'جلسه پیدا نشد.' })
       const members = await tx
-        .select({ userId: projectMembers.userId })
+        .select({ userId: projectMembers.userId, name: users.name, email: users.email })
         .from(projectMembers)
+        .innerJoin(users, eq(projectMembers.userId, users.id))
         .where(eq(projectMembers.projectId, session.projectId))
       const memberIds = new Set(members.map((member) => member.userId))
       if (!memberIds.has(userId))
@@ -83,13 +84,28 @@ export async function pokerSnapshot(sessionId: string, userId: string): Promise<
             .orderBy(asc(estimateHistory.createdAt))
         : []
       const current = items.find(({ item }) => item.position === session.activePosition)?.item
+      const participantIds = new Set(
+        people.filter((person) => memberIds.has(person.id)).map((person) => person.id),
+      )
       const currentVotes = current
-        ? votes.filter((vote) => vote.sessionTaskId === current.id && vote.round === current.round)
+        ? votes.filter(
+            (vote) =>
+              vote.sessionTaskId === current.id &&
+              vote.round === current.round &&
+              participantIds.has(vote.userId) &&
+              !current.ignoredUserIds.includes(vote.userId),
+          )
         : []
       const ignored = new Set(current?.ignoredUserIds ?? [])
       const hiddenRounds = new Set(
         votes
-          .filter((vote) => vote.value === '?')
+          .filter(
+            (vote) =>
+              vote.value === '?' &&
+              (vote.sessionTaskId !== current?.id ||
+                vote.round !== current.round ||
+                currentVotes.includes(vote)),
+          )
           .map((vote) => `${vote.sessionTaskId}:${vote.round}`),
       )
       const visible = Boolean(
@@ -98,9 +114,39 @@ export async function pokerSnapshot(sessionId: string, userId: string): Promise<
         !hiddenRounds.has(`${current.id}:${current.round}`) &&
         ['reveal', 'review', 'finalized'].includes(session.status),
       )
-      const voteOf = (id: string) => currentVotes.find((vote) => vote.userId === id)?.value ?? null
+      const free = session.mode === 'free' ? session.freeRound : null
+      const freeVotes = Object.entries(free?.votes ?? {}).filter(([id]) => participantIds.has(id))
+      const voteOf = (id: string) =>
+        free
+          ? (free.votes[id] ?? null)
+          : (currentVotes.find((vote) => vote.userId === id)?.value ?? null)
+      const { freeRound: _privateRound, ...publicSession } = session
       return {
-        session: jsonValue(session),
+        session: jsonValue(publicSession),
+        freeRound: free
+          ? {
+              round: free.round,
+              votes:
+                session.status === 'reveal'
+                  ? freeVotes.map(([id, value]) => ({
+                      userId: id,
+                      name: people.find((person) => person.id === id)?.name ?? 'عضو پیشین',
+                      value,
+                      round: free.round,
+                    }))
+                  : [],
+            }
+          : null,
+        availableMembers:
+          session.facilitatorId === userId && session.status !== 'finalized'
+            ? members
+                .filter((member) => !participantIds.has(member.userId))
+                .map((member) => ({
+                  id: member.userId,
+                  name: member.name,
+                  avatarUrl: gravatarUrl(member.email),
+                }))
+            : [],
         me: { id: userId, facilitator: session.facilitatorId === userId, vote: voteOf(userId) },
         participants: people
           .filter((person) => memberIds.has(person.id))
@@ -112,7 +158,9 @@ export async function pokerSnapshot(sessionId: string, userId: string): Promise<
             online: Boolean(person.lastSeenAt && Date.now() - person.lastSeenAt.getTime() < 25000),
             ignored: ignored.has(person.id),
             hasVoted: voteOf(person.id) !== null,
-            vote: visible && !ignored.has(person.id) ? voteOf(person.id) : null,
+            vote: (free ? session.status === 'reveal' : visible && !ignored.has(person.id))
+              ? voteOf(person.id)
+              : null,
           })),
         tasks: items.map(({ item, title }) => ({
           id: item.id,
@@ -134,7 +182,9 @@ export async function pokerSnapshot(sessionId: string, userId: string): Promise<
               (vote) =>
                 vote.sessionTaskId === item.id &&
                 !hiddenRounds.has(`${item.id}:${vote.round}`) &&
-                (vote.round !== item.round || !item.ignoredUserIds.includes(vote.userId)) &&
+                (vote.round !== item.round ||
+                  (!item.ignoredUserIds.includes(vote.userId) &&
+                    (item.status === 'estimated' || participantIds.has(vote.userId)))) &&
                 (item.status === 'estimated' ||
                   session.status === 'reveal' ||
                   vote.round < item.round),
@@ -165,6 +215,10 @@ export async function planningAction(
   body: Record<string, unknown>,
 ) {
   const action = enumInput(body.action, [
+    'addParticipant',
+    'removeParticipant',
+    'reset',
+    'finish',
     'publish',
     'start',
     'vote',
@@ -185,6 +239,105 @@ export async function planningAction(
     if (!session || session.revision !== revision || session.status === 'finalized') {
       throw createError({ statusCode: 409, message: 'وضعیت جلسه تغییر کرده است؛ دوباره تلاش کنید.' })
     }
+    // Recheck invitation under the same locks as voting and membership edits.
+    const participants = await tx
+      .select({ userId: pokerParticipants.userId })
+      .from(pokerParticipants)
+      .innerJoin(
+        projectMembers,
+        and(
+          eq(projectMembers.userId, pokerParticipants.userId),
+          eq(projectMembers.projectId, session.projectId),
+        ),
+      )
+      .where(eq(pokerParticipants.sessionId, session.id))
+    if (!participants.some((person) => person.userId === context.user.id))
+      throw createError({ statusCode: 403, message: 'دسترسی شما به این جلسه پایان یافته است.' })
+    const managing = session.facilitatorId === context.user.id
+    if (action !== 'vote' && !managing)
+      throw createError({ statusCode: 403, message: 'فقط تسهیل‌گر می‌تواند جلسه را مدیریت کند.' })
+    const membershipAction = action === 'addParticipant' || action === 'removeParticipant'
+    let changedUserId: string | undefined
+    if (membershipAction) {
+      const userId = uuidInput(body.userId)
+      changedUserId = userId
+      const included = participants.some((person) => person.userId === userId)
+      if (action === 'addParticipant') {
+        const [member] = await tx
+          .select({ id: projectMembers.id })
+          .from(projectMembers)
+          .where(
+            and(eq(projectMembers.projectId, session.projectId), eq(projectMembers.userId, userId)),
+          )
+        if (!member)
+          throw createError({ statusCode: 400, message: 'شرکت‌کننده باید عضو پروژه باشد.' })
+        if (included) throw createError({ statusCode: 409, message: 'این فرد در جلسه حضور دارد.' })
+        if (participants.length >= 50)
+          throw createError({ statusCode: 400, message: 'هر جلسه حداکثر ۵۰ شرکت‌کننده دارد.' })
+        await tx
+          .insert(pokerParticipants)
+          .values({ id: randomUUID(), sessionId: session.id, userId })
+          .onDuplicateKeyUpdate({ set: { joinedAt: null, lastSeenAt: null } })
+        participants.push({ userId })
+      } else {
+        if (userId === session.facilitatorId)
+          throw createError({ statusCode: 400, message: 'تسهیل‌گر باید در جلسه بماند.' })
+        if (!included) throw createError({ statusCode: 409, message: 'این فرد دیگر در جلسه نیست.' })
+        await tx
+          .delete(pokerParticipants)
+          .where(
+            and(eq(pokerParticipants.sessionId, session.id), eq(pokerParticipants.userId, userId)),
+          )
+        participants.splice(
+          participants.findIndex((person) => person.userId === userId),
+          1,
+        )
+      }
+    }
+    if (session.mode === 'free') {
+      const round = session.freeRound ?? { round: 1, votes: {} }
+      round.votes = Object.fromEntries(
+        Object.entries(round.votes).filter(([id]) =>
+          participants.some((person) => person.userId === id),
+        ),
+      )
+      let status: typeof pokerSessions.$inferSelect.status = session.status
+      if (action === 'publish' && status === 'draft') status = 'lobby'
+      else if (action === 'start' && status === 'lobby') status = 'voting'
+      else if (
+        action === 'vote' &&
+        status === 'voting' &&
+        body.round === round.round &&
+        typeof body.value === 'string' &&
+        session.cards.includes(body.value)
+      )
+        round.votes[context.user.id] = body.value
+      else if (action === 'reset' && (status === 'voting' || status === 'reveal')) {
+        round.round += 1
+        round.votes = {}
+        status = 'voting'
+      } else if (action === 'finish') {
+        round.votes = {}
+        status = 'finalized'
+      } else if (!membershipAction)
+        throw createError({ statusCode: 409, message: 'این عملیات در مرحله فعلی جلسه مجاز نیست.' })
+      if (
+        status === 'voting' &&
+        participants.every((person) => round.votes[person.userId] !== undefined)
+      )
+        status = 'reveal'
+      await tx
+        .update(pokerSessions)
+        .set({
+          freeRound: status === 'finalized' ? null : round,
+          status,
+          revision:
+            action === 'vote' && status === 'voting' ? session.revision : session.revision + 1,
+          ...(action === 'start' ? { cards: project.settings.cards } : {}),
+        })
+        .where(eq(pokerSessions.id, session.id))
+      return
+    }
     const items = await tx
       .select()
       .from(pokerSessionTasks)
@@ -193,17 +346,6 @@ export async function planningAction(
     const current = items.find((item) => item.position === session.activePosition)
     const completeRound = async () => {
       if (!current) return
-      const participants = await tx
-        .select({ userId: pokerParticipants.userId })
-        .from(pokerParticipants)
-        .innerJoin(
-          projectMembers,
-          and(
-            eq(projectMembers.userId, pokerParticipants.userId),
-            eq(projectMembers.projectId, session.projectId),
-          ),
-        )
-        .where(eq(pokerParticipants.sessionId, session.id))
       const votes = await tx
         .select()
         .from(pokerVotes)
@@ -212,7 +354,9 @@ export async function planningAction(
         (person) => !current.ignoredUserIds.includes(person.userId),
       )
       if (required.some((person) => !votes.some((vote) => vote.userId === person.userId))) return
-      const uncertain = votes.some((vote) => vote.value === '?')
+      const uncertain = votes.some(
+        (vote) => vote.value === '?' && required.some((person) => person.userId === vote.userId),
+      )
       await tx
         .update(pokerSessionTasks)
         .set({ revoteRequired: uncertain ? 1 : 0 })
@@ -222,12 +366,45 @@ export async function planningAction(
         .set({ status: 'reveal', revision: session.revision + 1 })
         .where(eq(pokerSessions.id, session.id))
     }
+    if (membershipAction && changedUserId) {
+      if (current && session.status === 'voting' && action === 'addParticipant') {
+        current.ignoredUserIds = current.ignoredUserIds.filter((id) => id !== changedUserId)
+        await tx
+          .update(pokerSessionTasks)
+          .set({ ignoredUserIds: current.ignoredUserIds })
+          .where(eq(pokerSessionTasks.id, current.id))
+      }
+      if (
+        current &&
+        (session.status === 'voting' || session.status === 'reveal') &&
+        (action === 'removeParticipant' ||
+          (action === 'addParticipant' && session.status === 'reveal')) &&
+        !current.ignoredUserIds.includes(changedUserId)
+      ) {
+        current.ignoredUserIds = [...current.ignoredUserIds, changedUserId]
+        await tx
+          .update(pokerSessionTasks)
+          .set({ ignoredUserIds: current.ignoredUserIds })
+          .where(eq(pokerSessionTasks.id, current.id))
+      }
+      await tx
+        .update(pokerSessions)
+        .set({ revision: session.revision + 1 })
+        .where(eq(pokerSessions.id, session.id))
+      if (
+        session.status === 'voting' ||
+        (session.status === 'reveal' && action === 'removeParticipant')
+      )
+        await completeRound()
+      return
+    }
     if (action === 'vote') {
       if (
         session.status !== 'voting' ||
         !current ||
         current.ignoredUserIds.includes(context.user.id) ||
         body.taskId !== current.id ||
+        (body.round !== undefined && body.round !== current.round) ||
         typeof body.value !== 'string' ||
         !session.cards.includes(body.value)
       ) {
@@ -293,6 +470,10 @@ export async function planningAction(
         .update(pokerSessionTasks)
         .set({ ignoredUserIds: current.ignoredUserIds })
         .where(eq(pokerSessionTasks.id, current.id))
+      await tx
+        .update(pokerSessions)
+        .set({ revision: session.revision + 1 })
+        .where(eq(pokerSessions.id, session.id))
       await completeRound()
       return
     }
@@ -331,6 +512,12 @@ export async function planningAction(
             eq(pokerVotes.sessionTaskId, item.id),
             eq(pokerVotes.round, item.round),
             eq(pokerVotes.value, '?'),
+            inArray(
+              pokerVotes.userId,
+              participants
+                .filter((person) => !item.ignoredUserIds.includes(person.userId))
+                .map((person) => person.userId),
+            ),
           ),
         )
       if (item.revoteRequired || uncertainVotes.length)

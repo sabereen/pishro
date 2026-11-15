@@ -16,7 +16,8 @@
     "test:integration": "node --test tests/task-picking.test.mjs",
     "test:editor": "node --test tests/rich-text.test.ts",
     "test:points": "node --test tests/points.test.ts",
-    "test:poker": "node --test tests/poker-points.test.mjs"
+    "test:poker": "node --test tests/poker-points.test.mjs",
+    "test:poker-sessions": "node --test tests/poker-sessions.test.mjs"
   },
   "dependencies": {
     "@nuxt/icon": "^2.5.1",

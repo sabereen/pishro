@@ -34,9 +34,17 @@ export type DailyReport = JsonValue<InferSelectModel<typeof schema.dailyReports>
   authorName: string
   authorAvatarUrl: string
 }
-export type PokerSession = JsonValue<InferSelectModel<typeof schema.pokerSessions>>
+export type PokerSession = Omit<
+  JsonValue<InferSelectModel<typeof schema.pokerSessions>>,
+  'freeRound'
+>
 export type PokerSnapshot = {
   session: PokerSession
+  freeRound: {
+    round: number
+    votes: { userId: string; name: string; value: string; round: number }[]
+  } | null
+  availableMembers: Pick<Member, 'id' | 'name' | 'avatarUrl'>[]
   me: { id: string; facilitator: boolean; vote: string | null }
   participants: {
     id: string

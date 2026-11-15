@@ -29,6 +29,13 @@
       "when": 1791777510722,
       "tag": "0003_fractional_points",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1794734503696,
+      "tag": "0004_free_poker_sessions",
+      "breakpoints": true
     }
   ]
 }
