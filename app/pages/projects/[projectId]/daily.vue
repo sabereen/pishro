@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DailyReport } from '#shared/models'
-import { datesBetween, isWorkingDay, persianDate, todayInTehran } from '#shared/calendar'
+import { datesBetween, isWorkingDay, persianDate } from '#shared/calendar'
 
 definePageMeta({ layout: 'project', middleware: 'auth', key: (route) => route.path })
 const { data: project } = await useProject()
@@ -9,9 +9,16 @@ const { user } = useAuth()
 const selectedId = ref(project.value?.sprints.find((item) => item.status === 'active')?.id ?? project.value?.sprints.at(-1)?.id ?? '')
 const sprint = computed(() => project.value?.sprints.find((item) => item.id === selectedId.value))
 const metrics = computed(() => project.value?.metrics[selectedId.value])
-const today = todayInTehran()
 const days = computed(() => sprint.value ? datesBetween(sprint.value.startDate, sprint.value.endDate).filter((date) => isWorkingDay(date, sprint.value!.workingDays)) : [])
-const { data: reports, error: loadError, refresh } = await useFetch<DailyReport[]>(`/api/projects/${id}/daily`, { query: { sprintId: selectedId }, immediate: Boolean(selectedId.value), watch: false })
+const request = useRequestFetch()
+const { data: daily, error: loadError, refresh } = await useAsyncData(`daily-${id}`, async () => {
+  const response = await request.raw<DailyReport[]>(`/api/projects/${id}/daily`, {
+    query: { sprintId: selectedId.value },
+  })
+  return { reports: response._data ?? [], today: response.headers.get('X-Pishro-Today') }
+}, { immediate: Boolean(selectedId.value) })
+const reports = computed(() => daily.value?.reports)
+const today = computed(() => daily.value?.today ?? '')
 const matrixMembers = computed(() => {
   const members = (project.value?.members ?? []).map((member) => ({ id: member.id, name: member.name, avatarUrl: member.avatarUrl, former: false }))
   for (const report of reports.value ?? []) {
@@ -20,12 +27,12 @@ const matrixMembers = computed(() => {
   return members
 })
 const reportsToday = computed(() => (reports.value ?? []).filter((report) =>
-  report.date === today && project.value?.members.some((member) => member.id === report.userId),
+  report.date === today.value && project.value?.members.some((member) => member.id === report.userId),
 ).length)
 watch(selectedId, () => { if (selectedId.value) void refresh() })
 const open = ref(false)
-const cell = ref({ userId: '', date: today })
-const editing = computed(() => cell.value.userId === user.value?.id && cell.value.date <= today)
+const cell = ref({ userId: '', date: '' })
+const editing = computed(() => cell.value.userId === user.value?.id && cell.value.date <= today.value)
 const selectedReport = computed(() => reports.value?.find((report) => report.userId === cell.value.userId && report.date === cell.value.date))
 const form = reactive({ yesterday: '', today: '', blockers: '', taskIds: [] as string[] })
 const { busy, run } = useAction()
@@ -109,7 +116,7 @@ const number = (value: number) => value.toLocaleString('fa-IR', { maximumFractio
     </section>
     <p class="mt-4 text-xs leading-7 text-muted">روی هر روز کلیک کنید تا گزارش را بخوانید؛ گزارش روزهای خودتان قابل ویرایش است. این جدول برای هماهنگی تیم است.</p>
   </template>
-  <UiDialog v-model="open" :title="`${matrixMembers.find((member) => member.id === cell.userId)?.name ?? 'گزارش روزانه'} · ${persianDate(cell.date, true)}`">
+  <UiDialog v-model="open" :title="cell.date ? `${matrixMembers.find((member) => member.id === cell.userId)?.name ?? 'گزارش روزانه'} · ${persianDate(cell.date, true)}` : 'گزارش روزانه'">
     <form v-if="editing" class="space-y-5" @submit.prevent="save"><label class="block text-sm font-bold">دیروز چه کردید؟<textarea v-model="form.yesterday" class="field mt-2 min-h-22 leading-7" maxlength="4000" /></label><label class="block text-sm font-bold">امروز چه می‌کنید؟<textarea v-model="form.today" class="field mt-2 min-h-22 leading-7" required maxlength="4000" /></label><label class="block text-sm font-bold">مانع یا نیاز به کمک<textarea v-model="form.blockers" class="field mt-2 min-h-18 leading-7" maxlength="4000" placeholder="اگر مانعی نیست، خالی بگذارید" /></label><fieldset><legend class="mb-3 text-sm font-bold">کارهای مرتبط</legend><div class="max-h-40 overflow-y-auto space-y-2"><label v-for="task in project?.tasks.filter((item) => item.sprintId === selectedId)" :key="task.id" class="flex items-center gap-2 rounded-lg bg-canvas p-3 text-sm"><input v-model="form.taskIds" :value="task.id" type="checkbox" class="accent-brand-600" />{{ task.title }}</label></div></fieldset><button class="button-primary w-full" :disabled="busy">{{ selectedReport ? 'ذخیره تغییرات' : 'ثبت گزارش' }}</button></form>
     <div v-else-if="selectedReport" class="space-y-6"><section v-for="section in [{ label: 'دیروز', value: selectedReport.yesterday }, { label: 'امروز', value: selectedReport.today }, { label: 'موانع', value: selectedReport.blockers }]" :key="section.label"><h3 class="mb-2 text-sm font-bold">{{ section.label }}</h3><p class="whitespace-pre-wrap break-words text-sm leading-8 text-muted">{{ section.value || 'موردی ثبت نشده است.' }}</p></section><section v-if="selectedReport.taskIds.length"><h3 class="mb-3 text-sm font-bold">کارهای مرتبط</h3><p v-for="taskId in selectedReport.taskIds" :key="taskId" class="mb-2 rounded-lg bg-canvas p-3 text-sm">{{ project?.tasks.find((task) => task.id === taskId)?.title ?? 'کار حذف‌شده' }}</p></section></div>
     <p v-else class="py-6 text-center text-sm leading-8 text-muted">برای این روز گزارشی ثبت نشده است.</p>

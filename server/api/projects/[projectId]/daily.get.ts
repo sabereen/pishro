@@ -1,4 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm'
+import { todayInTehran } from '../../../../shared/calendar'
 import { dailyReports, dailyReportTasks, sprints, users } from '../../../database/scrum'
 import { gravatarUrl } from '../../../utils/avatar'
 import { requireProject } from '../../../utils/auth'
@@ -15,5 +16,6 @@ export default defineEventHandler(async (event) => {
   const reports = await db.select({ report: dailyReports, authorName: users.name, authorEmail: users.email }).from(dailyReports)
     .innerJoin(users, eq(dailyReports.userId, users.id)).where(eq(dailyReports.sprintId, sprintId))
   const links = reports.length ? await db.select().from(dailyReportTasks).where(inArray(dailyReportTasks.reportId, reports.map(({ report }) => report.id))) : []
+  setResponseHeader(event, 'X-Pishro-Today', todayInTehran())
   return jsonValue(reports).map(({ report, authorName, authorEmail }) => ({ ...report, authorName, authorAvatarUrl: gravatarUrl(authorEmail), taskIds: links.filter((link) => link.reportId === report.id).map((link) => link.taskId) }))
 })
