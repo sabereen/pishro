@@ -2,6 +2,8 @@
 import type { PokerSnapshot } from '#shared/models'
 import { cardLabel, isNumericCard, numericVotes } from '#shared/scrum'
 
+type ResultVoter = { id: string; name: string; avatarUrl: string | undefined }
+
 const props = defineProps<{
   snapshot: PokerSnapshot
   busy: boolean
@@ -35,14 +37,20 @@ const ignoredMe = computed(
     false,
 )
 const voting = computed(() => props.snapshot.session.status === 'voting')
-const distribution = computed(() =>
-  [...new Set([...props.snapshot.session.cards, ...votes.value.map((vote) => vote.value)])]
-    .map((card) => ({
-      card,
-      count: votes.value.filter((vote) => vote.value === card).length,
-    }))
-    .filter((item) => item.count > 0),
-)
+useScreenWakeLock(voting)
+const distribution = computed(() => {
+  const participants = new Map(props.snapshot.participants.map((person) => [person.id, person]))
+  const cards = new Map<string, ResultVoter[]>(
+    props.snapshot.session.cards.map((card) => [card, []]),
+  )
+  for (const vote of votes.value) {
+    const voters = cards.get(vote.value) ?? []
+    const person = participants.get(vote.userId)
+    voters.push({ id: vote.userId, name: person?.name ?? vote.name, avatarUrl: person?.avatarUrl })
+    cards.set(vote.value, voters)
+  }
+  return [...cards].filter(([, voters]) => voters.length > 0)
+})
 const point = ref(3)
 const details = ref(false)
 const detailTab = ref<'team' | 'tasks' | 'members'>('team')
@@ -232,23 +240,36 @@ function leave() {
           </section>
           <section v-else aria-label="نتیجه رأی‌گیری">
             <div class="mb-5 text-center">
-              <p class="text-lg font-bold">کارت‌ها روی میز است</p>
-              <p class="mt-2 text-xs leading-6 text-muted">
+              <h2 class="text-lg font-bold">کارت‌ها روی میز است</h2>
+              <p v-if="!free" class="mt-2 text-xs leading-6 text-muted">
                 از کمترین و بیشترین برآورد شروع کنید و به یک تخمین مشترک برسید.
               </p>
             </div>
-            <div class="result-distribution" dir="ltr">
-              <div
-                v-for="item in distribution"
-                :key="item.card"
-                class="rounded-2xl border border-brand-100 bg-brand-50 px-3 py-4 text-center"
-              >
-                <p class="text-3xl font-bold text-brand-700">{{ cardLabel(item.card) }}</p>
-                <p class="mt-3 text-xs text-muted" dir="rtl">
-                  {{ item.count.toLocaleString('fa-IR') }} رأی
-                </p>
-              </div>
-            </div>
+            <ul class="mx-auto max-w-2xl space-y-2.5" aria-label="توزیع رأی‌ها">
+              <li v-for="[card, voters] in distribution" :key="card" class="result-group">
+                <div class="result-score rounded-xl bg-brand-50 text-brand-700">
+                  <h3 class="text-2xl font-bold leading-none tabular-nums">
+                    <span class="sr-only">کارت </span>
+                    <span v-if="card === 'coffee'" class="sr-only">استراحت</span>
+                    <span v-else-if="card === '?'" class="sr-only">نیاز به توضیح بیشتر</span>
+                    <bdi
+                      :aria-hidden="card === 'coffee' || card === '?' ? true : undefined"
+                      dir="ltr"
+                      >{{ cardLabel(card) }}</bdi
+                    >
+                  </h3>
+                  <span class="rounded-full bg-white px-2 py-0.5 text-xs font-bold">
+                    {{ voters.length.toLocaleString('fa-IR') }} رأی
+                  </span>
+                </div>
+                <ul class="result-voters" aria-label="رأی‌دهندگان">
+                  <li v-for="person in voters" :key="person.id" class="result-voter">
+                    <UserAvatar :name="person.name" :src="person.avatarUrl" :size="36" />
+                    <bdi class="text-xs font-medium leading-5">{{ person.name }}</bdi>
+                  </li>
+                </ul>
+              </li>
+            </ul>
             <dl class="mx-auto mt-5 grid max-w-lg grid-cols-3 gap-3 text-center">
               <div
                 v-for="metric in [
@@ -270,14 +291,10 @@ function leave() {
               </div>
             </dl>
             <p
-              class="mx-auto mt-4 max-w-lg text-center text-xs leading-7"
-              :class="statistics.disagreement ? 'text-amber-800' : 'text-muted'"
+              v-if="statistics.disagreement"
+              class="mt-4 text-center text-xs leading-7 text-amber-800"
             >
-              {{
-                statistics.disagreement
-                  ? 'اختلاف رأی بالاست؛ تفاوت نگاه‌ها را بررسی کنید.'
-                  : 'جزئیات رأی هر نفر در «تیم و مسیر» در دسترس است.'
-              }}
+              اختلاف رأی بالاست؛ تفاوت نگاه‌ها را بررسی کنید.
             </p>
           </section>
         </div>
@@ -678,12 +695,41 @@ function leave() {
   font-size: 1rem;
   opacity: 1;
 }
-.result-distribution {
+.result-group {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
-  gap: 0.75rem;
-  max-width: 640px;
-  margin: 0 auto;
+  grid-template-columns: clamp(3.75rem, 14vw, 5.5rem) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(0.5rem, 2vw, 1rem);
+  padding: 0.5rem;
+  border: 1px solid #e0e6ed;
+  border-radius: 1rem;
+  background: white;
+}
+.result-score {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.5rem;
+  min-height: 4.5rem;
+  padding: 0.5rem 0.25rem;
+  text-align: center;
+}
+.result-voters {
+  display: flex;
+  flex-wrap: wrap;
+  align-self: center;
+  gap: 0.75rem 0.5rem;
+  padding-block: 0.25rem;
+}
+.result-voter {
+  display: flex;
+  flex: 0 1 clamp(3.5rem, 12vw, 4.5rem);
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 .focus-footer {
   position: relative;
