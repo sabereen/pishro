@@ -3,6 +3,7 @@ import { and, eq, gt } from 'drizzle-orm'
 import { projectInvites, projectMembers, projects } from '../../database/scrum'
 import { hashToken, requireUser } from '../../utils/auth'
 import { useDatabase } from '../../utils/database'
+import { publishProjectPokerSessions } from '../../utils/poker-events'
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event)
@@ -15,6 +16,7 @@ export default defineEventHandler(async (event) => {
   if (event.method === 'POST') {
     await useDatabase().insert(projectMembers).values({ id: randomUUID(), projectId: invite.projectId, userId: user.id })
       .onDuplicateKeyUpdate({ set: { userId: user.id } })
+    publishProjectPokerSessions(invite.projectId)
   } else if (event.method !== 'GET') throw createError({ statusCode: 405, message: 'عملیات پشتیبانی نمی‌شود.' })
   return invite
 })

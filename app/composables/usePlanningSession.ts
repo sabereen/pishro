@@ -8,12 +8,20 @@ export function usePlanningSession(
   const snapshot = ref(initial)
   const { busy, error, run } = useAction()
   const connection = ref<'connecting' | 'connected' | 'reconnecting'>('connecting')
+  const url = `/api/projects/${projectId}/poker/${sessionId}`
   let stream: EventSource | undefined
   let mounted = false
   let disposed = false
+  let streamVersion = 0
+
+  function applySnapshot(incoming: PokerSnapshot) {
+    if (disposed || !snapshot.value) return
+    if (incoming.session.revision >= snapshot.value.session.revision) snapshot.value = incoming
+  }
+
   function connect() {
     if (!mounted || disposed || stream || !snapshot.value) return
-    stream = new EventSource(`/api/projects/${projectId}/poker/${sessionId}/events`)
+    stream = new EventSource(`${url}/events`)
     stream.addEventListener('access-ended', () => {
       stream?.close()
       stream = undefined
@@ -27,16 +35,12 @@ export function usePlanningSession(
       connection.value = 'reconnecting'
     }
     stream.addEventListener('snapshot', (event) => {
-      if (
-        disposed ||
-        busy.value ||
-        !(event instanceof MessageEvent) ||
-        typeof event.data !== 'string'
-      )
-        return
-      snapshot.value = JSON.parse(event.data) as PokerSnapshot
+      if (disposed || !(event instanceof MessageEvent) || typeof event.data !== 'string') return
+      streamVersion++
+      applySnapshot(JSON.parse(event.data) as PokerSnapshot)
     })
   }
+
   onMounted(() => {
     mounted = true
     connect()
@@ -52,21 +56,29 @@ export function usePlanningSession(
         void refreshProject(projectId).catch(() => {})
     },
   )
+
   async function action(action: string, fields: Record<string, unknown> = {}) {
-    if (busy.value || disposed) return
-    const revision = snapshot.value?.session.revision
+    if (busy.value || disposed || !snapshot.value) return
+    const revision = snapshot.value.session.revision
     await run(async () => {
-      // Pause live updates while the action response becomes the current snapshot.
-      stream?.close()
-      stream = undefined
-      const result = await $fetch<PokerSnapshot>(`/api/projects/${projectId}/poker/${sessionId}`, {
-        method: 'POST',
-        body: { action, revision, ...fields },
-      })
-      if (!disposed) snapshot.value = result
+      const versionBeforeAction = streamVersion
+      let result: PokerSnapshot | undefined
+      try {
+        result = await $fetch<PokerSnapshot>(url, {
+          method: 'POST',
+          body: { action, revision, ...fields },
+        })
+        // Votes within a round can share a revision, so an overlapping stream
+        // frame and POST response cannot be ordered by revision alone.
+        if (streamVersion === versionBeforeAction) applySnapshot(result)
+      } finally {
+        if (!disposed && snapshot.value && (!result || streamVersion !== versionBeforeAction)) {
+          const versionBeforeRefresh = streamVersion
+          const latest = await $fetch<PokerSnapshot>(url).catch(() => null)
+          if (latest && streamVersion === versionBeforeRefresh) applySnapshot(latest)
+        }
+      }
     })
-    // Reconnect after run clears busy so the stream's initial snapshot is not dropped.
-    connect()
   }
   return { snapshot, busy, error, connection, action }
 }

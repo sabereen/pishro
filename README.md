@@ -55,7 +55,7 @@ The second migration adds the Scrum model without deleting prototype data. Old t
 - Poker is limited to 100 tasks and 50 participants at creation. The creator facilitates the session; selected participants must be project members.
 - Hidden votes never leave the server except a participant's own selected card. Previously revealed rounds remain in history after revotes.
 - Accepting or calibrating an estimate updates the actual Task point and estimate history atomically. Completing voting enters Review; finalization is a separate action. Finalized sessions are read-only.
-- Planned sprint tasks can only be picked or released by the member choosing their own work. Task Picking uses the same MySQL-backed SSE snapshots as Poker, including membership and authentication rechecks. Concurrent picks serialize under the project/task locks; the losing request receives the winner’s name. Starting a sprint closes picking and remains allowed with unpicked tasks.
+- Planned sprint tasks can only be picked or released by the member choosing their own work. Task Picking uses MySQL-backed polled SSE snapshots; Poker uses commit-triggered, in-process SSE notifications. Both retain membership and authentication rechecks. Concurrent picks serialize under the project/task locks; the losing request receives the winner’s name. Starting a sprint closes picking and remains allowed with unpicked tasks.
 - Task drawers and Poker actions use revisions to reject stale updates. Bulk changes and round transitions use transactions and consistent lock ordering.
 
 ## GitHub
@@ -78,9 +78,9 @@ Passwords use native asynchronous Node scrypt with a random salt and stored para
 
 Login attempts are throttled in process (10 attempts per email/IP within 15 minutes). This throttle resets on process restart and is independent across instances; account and project authorization still run against MySQL on the server.
 
-SSE streams read shared MySQL state approximately once per second. Presence updates every 10 seconds and becomes offline after 25 seconds without a heartbeat. EventSource reconnects automatically. Authentication is rechecked during heartbeats and project membership during snapshots. Connections release their timers, and the database pool closes on server shutdown.
+Poker SSE subscribes to per-session in-process notifications before reading its initial MySQL snapshot. Committed Poker actions publish immediately; project card and membership edits broadcast to affected rooms. Bursts are coalesced per connection, with one ordered snapshot writer per stream. Presence and authentication are refreshed every 10 seconds, and presence becomes offline after 25 seconds without a heartbeat. EventSource reconnects automatically and always receives an authoritative initial snapshot. Client actions keep the SSE connection open and reconcile concurrent updates. Connections release subscriptions and timers, and the database pool closes on shutdown.
 
-Use a Node runtime that supports persistent streaming responses. Disable proxy buffering for Poker and Task Picking SSE endpoints. This intentionally simple mechanism needs no broker or separate backend; database work scales with connected streams.
+Use a Node runtime that supports persistent streaming responses and disable proxy buffering for Poker and Task Picking SSE endpoints. Poker's event bus assumes exactly one Nitro process; if multiple processes are introduced, replace it with cross-instance Pub/Sub or equivalent durable invalidation. Task Picking still polls once per second, and its database work scales with connected streams.
 
 For deployment, apply `bun run db:migrate`, build the application, and run `.output/server/index.mjs` with Node and the production environment. Migration application is an explicit deployment step; do not use schema pushing. `GET /api/health` reports process liveness and does not query MySQL.
 
@@ -168,3 +168,9 @@ The facilitator can add or remove project members from any open session using **
 Apply committed migration `0004_free_poker_sessions` before this release. It adds a mode with the existing task behavior as default and a nullable current free round; existing sessions and history are preserved. The production deployment workflow runs committed migrations before publishing the artifact.
 
 Run `POKER_SESSIONS_TEST_URL=http://localhost:3000 pnpm test:poker-sessions` only with a disposable migrated database and running server. It covers free creation, access control, live membership, hidden votes, concurrent voting, stale round/revision rejection, repeated reset, special cards, SSE revocation, finish and task-session history. Browser checks use three Chromium clients and widths 320, 375, 768 and 1440.
+
+## Poker SSE performance validation
+
+- Run `node --test tests/poker-events.test.mjs` for the in-process fan-out, cleanup, and failure-isolation checks. The existing `test:poker-sessions` script exercises live stream revocation against a disposable MySQL-backed server.
+- For latency investigations, measure vote POST duration, database lock/connection wait, snapshot generation, time of SSE frame receipt, and reverse-proxy buffering separately. Slow Poker snapshot reads (at least 1000 ms) are logged with their duration and session ID.
+- Verify `Content-Type: text/event-stream`, `X-Accel-Buffering: no`, and disabled compression/buffering for the SSE route at the actual reverse proxy. No production latency claim is made without production measurements.

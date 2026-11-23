@@ -18,6 +18,7 @@ import { gravatarUrl } from '../utils/avatar'
 import { jsonValue } from '../utils/json'
 import { enumInput, integerInput, pointInput, uuidInput } from '../utils/validation'
 import { lockProject, selectedTasks, updateTask } from './projects'
+import { publishPokerSession } from '../utils/poker-events'
 
 export async function requirePoker(event: H3Event) {
   const context = await requireProject(event)
@@ -561,5 +562,6 @@ export async function planningAction(
     else throw createError({ statusCode: 409, message: 'این عملیات در مرحله فعلی جلسه مجاز نیست.' })
     await tx.update(pokerSessions).set(next).where(eq(pokerSessions.id, session.id))
   })
+  publishPokerSession(context.projectId, context.sessionId)
   return pokerSnapshot(context.sessionId, context.user.id)
 }

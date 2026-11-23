@@ -5,11 +5,12 @@ import { lockProject } from '../../../services/projects'
 import { hashToken, requireProject } from '../../../utils/auth'
 import { useDatabase } from '../../../utils/database'
 import { enumInput, objectBody, textInput, uuidInput } from '../../../utils/validation'
+import { publishProjectPokerSessions } from '../../../utils/poker-events'
 
 export default defineEventHandler(async (event) => {
   const { projectId, user } = await requireProject(event, true)
   const body = objectBody(await readBody<unknown>(event))
-  return useDatabase().transaction(async (tx) => {
+  const result = await useDatabase().transaction(async (tx) => {
     await lockProject(tx, projectId, user.id, true)
     if (event.method === 'POST') {
       if (body.email) {
@@ -52,4 +53,8 @@ export default defineEventHandler(async (event) => {
     }
     return { ok: true }
   })
+  // A membership or facilitator change may revoke a stream or alter multiple rooms.
+  // Publishing for invite-link creation is harmless (no room snapshot changes).
+  publishProjectPokerSessions(projectId)
+  return result
 })
