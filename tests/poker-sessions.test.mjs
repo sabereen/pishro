@@ -93,7 +93,51 @@ test('free Poker and live participant management', { skip: !base }, async (t) =>
       assert.equal((await request(url, late)).status, 200)
       await act('removeParticipant', { userId: late.id })
       await act('start')
-      await vote('0.5')
+      // Open a second authenticated client and verify a committed vote reaches
+      // its SSE stream without waiting for a one-second database polling loop.
+      const liveAbort = new AbortController()
+      const liveStream = await fetch(`${base}${url}/events`, {
+        headers: { cookie: member.cookie },
+        signal: liveAbort.signal,
+      })
+      assert.equal(liveStream.status, 200)
+      assert.match(liveStream.headers.get('content-type') ?? '', /text\/event-stream/)
+      const liveReader = liveStream.body.getReader()
+      const decoder = new TextDecoder()
+      let buffered = ''
+      async function nextLiveSnapshot() {
+        for (;;) {
+          const boundary = buffered.indexOf('\n\n')
+          if (boundary >= 0) {
+            const frame = buffered.slice(0, boundary)
+            buffered = buffered.slice(boundary + 2)
+            if (frame.startsWith('event: snapshot')) {
+              const payload = frame.split('\n').filter((line) => line.startsWith('data: ')).map((line) => line.slice(6)).join('\n')
+              return JSON.parse(payload)
+            }
+            continue
+          }
+          const { value, done } = await liveReader.read()
+          if (done) throw new Error('Poker SSE stream closed before snapshot')
+          buffered += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+        }
+      }
+      const liveDeadline = setTimeout(() => liveAbort.abort(), 5000)
+      try {
+        const initialLive = await nextLiveSnapshot()
+        assert.equal(initialLive.participants.find((person) => person.id === admin.id).hasVoted, false)
+        const voteStartedAt = performance.now()
+        await vote('0.5')
+        let updatedLive
+        do {
+          updatedLive = await nextLiveSnapshot()
+        } while (!updatedLive.participants.find((person) => person.id === admin.id).hasVoted)
+        assert.ok(performance.now() - voteStartedAt < 5000, 'Poker vote SSE delivery exceeded 5s')
+      } finally {
+        clearTimeout(liveDeadline)
+        liveAbort.abort()
+        await liveReader.cancel().catch(() => {})
+      }
       const other = (await request(url, member)).data
       assert.equal(other.me.vote, null)
       assert.equal(other.participants.find((person) => person.id === admin.id).hasVoted, true)
