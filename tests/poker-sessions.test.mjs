@@ -122,9 +122,11 @@ test('free Poker and live participant management', { skip: !base }, async (t) =>
           buffered += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
         }
       }
-      const liveDeadline = setTimeout(() => liveAbort.abort(), 5000)
+      let liveDeadline = setTimeout(() => liveAbort.abort(), 5000)
       try {
         const initialLive = await nextLiveSnapshot()
+        clearTimeout(liveDeadline)
+        liveDeadline = setTimeout(() => liveAbort.abort(), 5000)
         assert.equal(initialLive.participants.find((person) => person.id === admin.id).hasVoted, false)
         const voteStartedAt = performance.now()
         await vote('0.5')
