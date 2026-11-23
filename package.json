@@ -17,7 +17,8 @@
     "test:editor": "node --test tests/rich-text.test.ts",
     "test:points": "node --test tests/points.test.ts",
     "test:poker": "node --test tests/poker-points.test.mjs",
-    "test:poker-sessions": "node --test tests/poker-sessions.test.mjs"
+    "test:poker-sessions": "node --test tests/poker-sessions.test.mjs",
+    "test:poker-events": "node --test tests/poker-events.test.mjs"
   },
   "dependencies": {
     "@nuxt/icon": "^2.5.1",
