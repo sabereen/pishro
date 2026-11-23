@@ -75,36 +75,46 @@ async function create() {
     </button>
   </div>
   <p v-if="loadError" role="alert" class="panel p-5 text-red-700">{{ requestError(loadError) }}</p>
-  <section v-else-if="sessions?.length" class="panel divide-y divide-line">
-    <div
+  <ul v-else-if="sessions?.length" class="panel divide-y divide-line" aria-label="جلسات پوکر">
+    <li
       v-for="session in sessions"
       :key="session.id"
-      class="flex flex-wrap items-center gap-4 p-5"
+      class="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-3 p-4 sm:gap-x-4 sm:p-5 md:grid-cols-[auto_minmax(0,1fr)_auto]"
     >
       <span
-        class="h-12 w-12 flex items-center justify-center rounded-xl bg-brand-50 text-xl text-brand-700"
+        class="h-10 w-10 flex items-center justify-center rounded-xl bg-brand-50 text-lg text-brand-700 sm:h-12 sm:w-12 sm:text-xl"
         ><Icon name="lucide:panels-top-left" aria-hidden="true"
       /></span>
-      <div class="min-w-0 flex-1">
-        <h2 class="break-words font-bold">{{ session.name }}</h2>
-        <p class="mt-2 text-xs text-muted">{{ persianDate(session.createdAt) }}</p>
+      <div class="min-w-0">
+        <h2 :id="`poker-session-${session.id}`" class="break-words font-bold leading-7">
+          <bdi>{{ session.name }}</bdi>
+        </h2>
+        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted">
+          <span class="rounded-lg bg-canvas px-2.5 py-1 leading-5">
+            {{ session.mode === 'free' ? 'جلسه آزاد · ' : '' }}{{ pokerLabels[session.status] }}
+          </span>
+          <span>{{ persianDate(session.createdAt) }}</span>
+        </div>
       </div>
-      <span class="rounded-lg bg-canvas px-3 py-2 text-xs text-muted"
-        >{{ session.mode === 'free' ? 'جلسه آزاد · ' : '' }}{{ pokerLabels[session.status] }}</span
-      ><NuxtLink
-        v-if="session.invited"
-        :to="`/projects/${id}/poker/${session.id}`"
-        class="button-secondary text-sm"
-        >{{
-          session.status === 'finalized'
-            ? session.mode === 'free'
-              ? 'دیدن جلسه'
-              : 'دیدن تخمین‌ها'
-            : 'ورود به جلسه'
-        }}<Icon name="lucide:arrow-left" aria-hidden="true" /></NuxtLink
-      ><span v-else class="text-xs text-muted">ویژه شرکت‌کنندگان دعوت‌شده</span>
-    </div>
-  </section>
+      <div class="col-span-2 flex justify-end md:col-span-1 md:self-center">
+        <NuxtLink
+          v-if="session.invited"
+          :to="`/projects/${id}/poker/${session.id}`"
+          :aria-describedby="`poker-session-${session.id}`"
+          class="button-secondary text-sm"
+        >
+          {{
+            session.status === 'finalized'
+              ? session.mode === 'free'
+                ? 'دیدن جلسه'
+                : 'دیدن تخمین‌ها'
+              : 'ورود به جلسه'
+          }}<Icon name="lucide:arrow-left" aria-hidden="true" />
+        </NuxtLink>
+        <span v-else class="text-xs leading-6 text-muted">ویژه شرکت‌کنندگان دعوت‌شده</span>
+      </div>
+    </li>
+  </ul>
   <EmptyState
     v-else
     title="تیم را دور یک میز جمع کنید"

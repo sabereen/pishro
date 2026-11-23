@@ -32,7 +32,7 @@ export function useScreenWakeLock(active: WatchSource<boolean>) {
         lock = await navigator.wakeLock.request('screen')
         if (cancelled) await lock.release()
       } catch {
-        // A browser or device may deny the request while voting is still available.
+        // A browser or device may deny the request.
       }
     },
     { flush: 'sync' },

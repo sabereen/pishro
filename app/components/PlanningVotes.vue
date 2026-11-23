@@ -37,7 +37,6 @@ const ignoredMe = computed(
     false,
 )
 const voting = computed(() => props.snapshot.session.status === 'voting')
-useScreenWakeLock(voting)
 const distribution = computed(() => {
   const participants = new Map(props.snapshot.participants.map((person) => [person.id, person]))
   const cards = new Map<string, ResultVoter[]>(
@@ -57,6 +56,8 @@ const detailTab = ref<'team' | 'tasks' | 'members'>('team')
 const selectedPerson = ref<string | null>(null)
 const dialog = shallowRef<HTMLDialogElement>()
 const heading = shallowRef<HTMLElement>()
+const body = shallowRef<HTMLElement>()
+const actionError = shallowRef<HTMLElement>()
 const titleId = useId()
 const pointId = useId()
 let previousFocus: HTMLElement | null = null
@@ -87,9 +88,17 @@ watch(
       point.value = choices.sort((a, b) => Math.abs(a - median) - Math.abs(b - median))[0] ?? 3
     }
     await nextTick()
+    if (body.value) body.value.scrollTop = 0
     if (mounted && !details.value) heading.value?.focus({ preventScroll: true })
   },
   { immediate: true },
+)
+watch(
+  () => props.error,
+  (message) => {
+    if (message && !details.value) actionError.value?.scrollIntoView({ block: 'nearest' })
+  },
+  { flush: 'post' },
 )
 function openTeam() {
   detailTab.value = 'team'
@@ -166,8 +175,11 @@ function leave() {
         </div>
         <h1 :id="titleId" ref="heading" tabindex="-1" class="focus-title">{{ current.title }}</h1>
       </div>
-      <main class="focus-body">
-        <div class="focus-stage">
+      <main ref="body" class="focus-body">
+        <div
+          class="focus-stage"
+          :class="{ 'focus-stage-results': !voting && !current.revoteRequired }"
+        >
           <section v-if="voting" aria-label="میز انتخاب کارت">
             <div class="mb-5 text-center">
               <p class="text-base font-bold sm:text-lg">
@@ -241,8 +253,11 @@ function leave() {
           <section v-else aria-label="نتیجه رأی‌گیری">
             <div class="mb-5 text-center">
               <h2 class="text-lg font-bold">کارت‌ها روی میز است</h2>
-              <p v-if="!free" class="mt-2 text-xs leading-6 text-muted">
-                از کمترین و بیشترین برآورد شروع کنید و به یک تخمین مشترک برسید.
+              <p
+                v-if="statistics.disagreement"
+                class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs leading-5 text-amber-800"
+              >
+                <Icon name="lucide:triangle-alert" aria-hidden="true" />اختلاف رأی بالاست
               </p>
             </div>
             <ul class="mx-auto max-w-2xl space-y-2.5" aria-label="توزیع رأی‌ها">
@@ -270,44 +285,94 @@ function leave() {
                 </ul>
               </li>
             </ul>
-            <dl class="mx-auto mt-5 grid max-w-lg grid-cols-3 gap-3 text-center">
-              <div
-                v-for="metric in [
-                  { label: 'میانه', value: statistics.median },
-                  { label: 'میانگین', value: statistics.average },
-                  { label: 'دامنه اختلاف', value: statistics.range },
-                ]"
-                :key="metric.label"
-                class="rounded-xl border border-line bg-white p-3"
-              >
-                <dt class="text-xs text-muted">{{ metric.label }}</dt>
-                <dd class="mt-2 text-xl font-bold">
-                  {{
-                    metric.value === null
-                      ? '—'
-                      : metric.value.toLocaleString('fa-IR', { maximumFractionDigits: 2 })
-                  }}
-                </dd>
-              </div>
-            </dl>
-            <p
-              v-if="statistics.disagreement"
-              class="mt-4 text-center text-xs leading-7 text-amber-800"
-            >
-              اختلاف رأی بالاست؛ تفاوت نگاه‌ها را بررسی کنید.
-            </p>
           </section>
+          <p
+            v-if="error"
+            ref="actionError"
+            role="alert"
+            class="mx-auto mt-4 max-w-2xl rounded-xl border border-red-200 bg-red-50 p-3 text-sm leading-7 text-red-700"
+          >
+            {{ error }}
+          </p>
+          <template v-if="!voting">
+            <div v-if="current.revoteRequired" class="mt-4 text-center">
+              <button
+                v-if="snapshot.me.facilitator"
+                type="button"
+                class="button-primary"
+                :disabled="busy"
+                @click="emit('action', 'revote', { taskId: current.id })"
+              >
+                <Icon name="lucide:rotate-ccw" aria-hidden="true" />شروع رأی‌گیری مجدد
+              </button>
+              <p v-else class="text-sm leading-7 text-muted">
+                پس از رفع ابهام، تسهیل‌گر دور بعد را شروع می‌کند.
+              </p>
+            </div>
+            <div
+              v-else-if="free && snapshot.me.facilitator"
+              class="mt-5 flex flex-wrap justify-center gap-3"
+            >
+              <button
+                type="button"
+                class="button-primary text-sm"
+                :disabled="busy"
+                @click="emit('action', 'reset')"
+              >
+                <Icon name="lucide:rotate-ccw" aria-hidden="true" />شروع دور جدید
+              </button>
+              <button
+                type="button"
+                class="button-secondary text-sm"
+                :disabled="busy"
+                @click="emit('action', 'finish')"
+              >
+                پایان جلسه
+              </button>
+            </div>
+            <form
+              v-else-if="!free && snapshot.me.facilitator"
+              class="focus-actions mx-auto mt-5 flex max-w-2xl flex-wrap items-end justify-center gap-3"
+              @submit.prevent="emit('action', 'accept', { point, taskId: current.id })"
+            >
+              <div class="w-28">
+                <label :for="pointId" class="mb-2 block text-xs font-bold">تخمین نهایی</label>
+                <input
+                  :id="pointId"
+                  v-model.number="point"
+                  class="field py-2.5 text-center"
+                  type="number"
+                  required
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  :disabled="busy"
+                />
+              </div>
+              <button
+                type="button"
+                class="button-secondary text-xs"
+                :disabled="busy"
+                @click="emit('action', 'revote', { taskId: current.id })"
+              >
+                <Icon name="lucide:rotate-ccw" aria-hidden="true" />رأی‌گیری مجدد
+              </button>
+              <button type="submit" class="focus-accept button-primary text-sm" :disabled="busy">
+                {{
+                  snapshot.tasks.some((task) => task.id !== current?.id && task.status !== 'estimated')
+                    ? 'ثبت و کار بعدی'
+                    : 'ثبت و بازبینی تخمین‌ها'
+                }}<Icon name="lucide:arrow-left" aria-hidden="true" />
+              </button>
+            </form>
+            <p v-else-if="!free" class="mt-4 text-center text-sm leading-7 text-muted">
+              تسهیل‌گر تخمین نهایی را ثبت می‌کند.
+            </p>
+          </template>
         </div>
       </main>
-      <footer class="focus-footer">
-        <p
-          v-if="error"
-          role="alert"
-          class="focus-error rounded-xl border border-red-200 bg-red-50 p-3 text-xs leading-7 text-red-700"
-        >
-          {{ error }}
-        </p>
-        <div v-if="voting" class="mx-auto w-full max-w-2xl">
+      <footer v-if="voting" class="focus-footer">
+        <div class="mx-auto w-full max-w-2xl">
           <div class="flex items-center justify-between gap-3 text-sm">
             <span class="font-bold" role="status" aria-live="polite"
               >{{ voted.toLocaleString('fa-IR') }} از
@@ -356,80 +421,32 @@ function leave() {
             >
           </div>
         </div>
-        <div v-else-if="current.revoteRequired" class="text-center">
-          <button
-            v-if="snapshot.me.facilitator"
-            class="button-primary"
-            :disabled="busy"
-            @click="emit('action', 'revote', { taskId: current.id })"
-          >
-            <Icon name="lucide:rotate-ccw" aria-hidden="true" />شروع رأی‌گیری مجدد
-          </button>
-          <p v-else class="text-sm leading-7 text-muted">
-            پس از رفع ابهام، تسهیل‌گر دور بعد را شروع می‌کند.
-          </p>
-        </div>
-        <div v-else-if="free" class="text-center">
-          <p class="mb-3 text-xs leading-6 text-muted">
-            با شروع دور جدید، رأی‌های این دور پاک می‌شوند.
-          </p>
-          <div v-if="snapshot.me.facilitator" class="flex flex-wrap justify-center gap-3">
-            <button
-              type="button"
-              class="button-primary"
-              :disabled="busy"
-              @click="emit('action', 'reset')"
-            >
-              <Icon name="lucide:rotate-ccw" aria-hidden="true" />ریست و دور جدید</button
-            ><button
-              type="button"
-              class="button-secondary"
-              :disabled="busy"
-              @click="emit('action', 'finish')"
-            >
-              پایان جلسه
-            </button>
-          </div>
-          <p v-else class="text-sm text-muted">تسهیل‌گر دور جدید را شروع می‌کند.</p>
-        </div>
-        <form
-          v-else-if="snapshot.me.facilitator"
-          class="focus-actions mx-auto flex max-w-3xl flex-wrap items-end justify-center gap-3"
-          @submit.prevent="emit('action', 'accept', { point, taskId: current.id })"
+      </footer>
+      <footer v-else-if="!current.revoteRequired" class="focus-footer" aria-label="آمار دور">
+        <dl
+          class="mx-auto grid max-w-lg grid-cols-3 gap-1 rounded-xl border border-line bg-canvas p-1 text-center"
         >
-          <div class="w-28">
-            <label :for="pointId" class="mb-2 block text-xs font-bold">تخمین نهایی</label
-            ><input
-              :id="pointId"
-              v-model.number="point"
-              class="field py-2.5 text-center"
-              type="number"
-              required
-              min="0"
-              max="100"
-              step="0.5"
-              :disabled="busy"
-            />
-          </div>
-          <button
-            type="button"
-            class="button-secondary text-xs"
-            :disabled="busy"
-            @click="emit('action', 'revote', { taskId: current.id })"
+          <div
+            v-for="metric in [
+              { label: 'میانه', value: statistics.median },
+              { label: 'میانگین', value: statistics.average, primary: true },
+              { label: 'دامنه اختلاف', value: statistics.range },
+            ]"
+            :key="metric.label"
+            class="rounded-lg px-1 py-1.5 sm:py-2"
+            :class="metric.primary ? 'bg-brand-50 font-bold text-brand-700' : 'text-muted'"
           >
-            <Icon name="lucide:rotate-ccw" aria-hidden="true" />رأی‌گیری مجدد
-          </button>
-          <button class="focus-accept button-primary text-sm" :disabled="busy">
-            {{
-              snapshot.tasks.some((task) => task.id !== current?.id && task.status !== 'estimated')
-                ? 'ثبت و کار بعدی'
-                : 'ثبت و بازبینی تخمین‌ها'
-            }}<Icon name="lucide:arrow-left" aria-hidden="true" />
-          </button>
-        </form>
-        <p v-else class="text-center text-sm leading-7 text-muted">
-          در حال گفت‌وگو؛ تسهیل‌گر تخمین نهایی را ثبت می‌کند.
-        </p>
+            <dt class="text-xs leading-5">{{ metric.label }}</dt>
+            <dd
+              class="text-lg font-bold leading-tight sm:text-xl"
+              :class="{ 'text-ink': !metric.primary }"
+            >
+              <bdi dir="ltr">
+                {{ metric.value?.toLocaleString('fa-IR', { maximumFractionDigits: 2 }) ?? '—' }}
+              </bdi>
+            </dd>
+          </div>
+        </dl>
       </footer>
     </div>
     <UiDialog v-model="details" title="تیم و مسیر برآورد" drawer>
@@ -615,7 +632,7 @@ function leave() {
   padding: 1rem 1.25rem 0;
 }
 .focus-title {
-  height: 5rem;
+  max-height: 3.6em;
   overflow-y: auto;
   overflow-wrap: anywhere;
   font-size: clamp(1rem, 2.4vw, 1.5rem);
@@ -637,6 +654,9 @@ function leave() {
 .focus-stage {
   width: min(100%, 760px);
   margin: auto;
+}
+.focus-stage-results {
+  margin-block-start: 0;
 }
 .poker-deck {
   display: grid;
@@ -732,16 +752,9 @@ function leave() {
   text-align: center;
 }
 .focus-footer {
-  position: relative;
-  height: calc(124px + env(safe-area-inset-bottom));
-  padding: 1rem 1.25rem max(1rem, env(safe-area-inset-bottom));
+  padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
   border-top: 1px solid #e0e6ed;
   background: white;
-}
-.focus-error {
-  position: absolute;
-  bottom: calc(100% + 0.5rem);
-  inset-inline: 1rem;
 }
 @media (max-width: 639px) {
   .focus-header {
@@ -753,13 +766,6 @@ function leave() {
   }
   .focus-body {
     padding: 1rem;
-  }
-  .focus-title {
-    height: 3.6rem;
-  }
-  .focus-footer {
-    height: calc(168px + env(safe-area-inset-bottom));
-    padding-top: 0.75rem;
   }
   .focus-actions {
     display: grid;
@@ -780,13 +786,7 @@ function leave() {
     padding-top: 0.5rem;
   }
   .focus-title {
-    height: 2.7rem;
     font-size: 1rem;
-  }
-  .focus-footer {
-    height: calc(100px + env(safe-area-inset-bottom));
-    padding-block: 0.5rem;
-    overflow-y: auto;
   }
 }
 @media (prefers-reduced-motion: reduce) {

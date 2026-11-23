@@ -14,6 +14,36 @@ const { snapshot, busy, error, connection, action } = usePlanningSession(
   sessionId,
   data.value ?? null,
 )
+useScreenWakeLock(() =>
+  Boolean(!loadError.value && snapshot.value && snapshot.value.session.status !== 'finalized'),
+)
+
+const focused = computed(
+  () => snapshot.value?.session.status === 'voting' || snapshot.value?.session.status === 'reveal',
+)
+const freeSession = computed(() => snapshot.value?.session.mode === 'free')
+const finishOpen = ref(false)
+const finishAction = computed(() => {
+  const state = snapshot.value
+  if (!state?.me.facilitator) return null
+  const { mode, status } = state.session
+  if (mode === 'free') return status === 'voting' || status === 'reveal' ? 'finish' : null
+  return status === 'review' ? 'finalize' : null
+})
+watch(finishAction, () => {
+  finishOpen.value = false
+})
+function sessionAction(name: string, fields?: Record<string, unknown>) {
+  if (name !== 'finish' && name !== 'finalize') return action(name, fields)
+  if (!busy.value && finishAction.value === name) finishOpen.value = true
+}
+function confirmFinish() {
+  const name = finishAction.value
+  if (!finishOpen.value || !name || busy.value) return
+  finishOpen.value = false
+  void action(name)
+}
+
 const shareLink = ref('')
 const membersOpen = ref(false)
 const copied = ref(false)
@@ -99,7 +129,7 @@ async function copy() {
         @focus="($event.target as HTMLInputElement).select()"
     /></Transition>
     <p
-      v-if="error"
+      v-if="error && !focused"
       role="alert"
       class="mb-5 rounded-xl bg-red-50 p-4 text-sm leading-7 text-red-700"
     >
@@ -122,15 +152,15 @@ async function copy() {
       v-else-if="snapshot.session.status === 'review' || snapshot.session.status === 'finalized'"
       :snapshot="snapshot"
       :busy="busy"
-      @action="action"
+      @action="sessionAction"
     />
     <PlanningVotes
-      v-else-if="snapshot.session.status === 'voting' || snapshot.session.status === 'reveal'"
+      v-else-if="focused"
       :snapshot="snapshot"
       :busy="busy"
       :error="error"
       :connection="connection"
-      @action="action"
+      @action="sessionAction"
     />
     <div v-else class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_290px]">
       <section
@@ -167,7 +197,7 @@ async function copy() {
           v-if="snapshot.me.facilitator"
           class="button-primary w-full"
           :disabled="busy"
-          @click="action(snapshot.session.status === 'draft' ? 'publish' : 'start')"
+          @click="sessionAction(snapshot.session.status === 'draft' ? 'publish' : 'start')"
         >
           <Icon name="lucide:play" aria-hidden="true" />{{
             snapshot.session.status === 'draft' ? 'باز کردن لابی' : 'شروع رأی‌گیری'
@@ -236,7 +266,41 @@ async function copy() {
       </aside>
     </div>
     <UiDialog v-model="membersOpen" title="مدیریت اعضای جلسه" drawer
-      ><PokerParticipants :snapshot="snapshot" :busy="busy" @action="action"
+      ><PokerParticipants :snapshot="snapshot" :busy="busy" @action="sessionAction"
     /></UiDialog>
+    <UiDialog
+      v-model="finishOpen"
+      :title="freeSession ? 'جلسه پایان یابد؟' : 'تخمین‌ها نهایی شوند؟'"
+    >
+      <p class="text-sm leading-8 text-muted">
+        {{
+          freeSession
+            ? 'رأی‌های دور جاری پاک می‌شوند. برای رأی‌گیری دوباره باید جلسهٔ جدیدی بسازید.'
+            : 'پوینت‌ها نهایی می‌شوند و رأی‌گیری در این جلسه دیگر باز نمی‌شود.'
+        }}
+      </p>
+      <div class="mt-6 flex flex-wrap justify-end gap-3">
+        <button
+          type="button"
+          class="button-secondary text-sm"
+          autofocus
+          @click="finishOpen = false"
+        >
+          انصراف
+        </button>
+        <button
+          type="button"
+          :class="
+            freeSession
+              ? 'min-h-11 rounded-[10px] bg-red-700 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-red-800 disabled:opacity-50'
+              : 'button-primary text-sm'
+          "
+          :disabled="busy"
+          @click="confirmFinish"
+        >
+          {{ freeSession ? 'پایان جلسه' : 'نهایی کردن تخمین‌ها' }}
+        </button>
+      </div>
+    </UiDialog>
   </div>
 </template>
