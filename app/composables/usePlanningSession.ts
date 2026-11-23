@@ -13,7 +13,11 @@ export function usePlanningSession(
   let mounted = false
   let disposed = false
   let streamVersion = 0
-  let missedDuringAction = false
+
+  function applySnapshot(incoming: PokerSnapshot) {
+    if (disposed || !snapshot.value) return
+    if (incoming.session.revision >= snapshot.value.session.revision) snapshot.value = incoming
+  }
 
   function connect() {
     if (!mounted || disposed || stream || !snapshot.value) return
@@ -32,15 +36,8 @@ export function usePlanningSession(
     }
     stream.addEventListener('snapshot', (event) => {
       if (disposed || !(event instanceof MessageEvent) || typeof event.data !== 'string') return
-      const incoming = JSON.parse(event.data) as PokerSnapshot
       streamVersion++
-      if (busy.value) {
-        // The POST response will be applied first. A fresh GET then reconciles
-        // any concurrent changes observed while the action was in flight.
-        missedDuringAction = true
-        return
-      }
-      snapshot.value = incoming
+      applySnapshot(JSON.parse(event.data) as PokerSnapshot)
     })
   }
 
@@ -61,26 +58,27 @@ export function usePlanningSession(
   )
 
   async function action(action: string, fields: Record<string, unknown> = {}) {
-    if (busy.value || disposed) return
-    const revision = snapshot.value?.session.revision
-    missedDuringAction = false
-    const succeeded = await run(async () => {
-      const result = await $fetch<PokerSnapshot>(url, {
-        method: 'POST',
-        body: { action, revision, ...fields },
-      })
-      if (!disposed && snapshot.value) snapshot.value = result
+    if (busy.value || disposed || !snapshot.value) return
+    const revision = snapshot.value.session.revision
+    await run(async () => {
+      const versionBeforeAction = streamVersion
+      let result: PokerSnapshot | undefined
+      try {
+        result = await $fetch<PokerSnapshot>(url, {
+          method: 'POST',
+          body: { action, revision, ...fields },
+        })
+        // Votes within a round can share a revision, so an overlapping stream
+        // frame and POST response cannot be ordered by revision alone.
+        if (streamVersion === versionBeforeAction) applySnapshot(result)
+      } finally {
+        if (!disposed && snapshot.value && (!result || streamVersion !== versionBeforeAction)) {
+          const versionBeforeRefresh = streamVersion
+          const latest = await $fetch<PokerSnapshot>(url).catch(() => null)
+          if (latest && streamVersion === versionBeforeRefresh) applySnapshot(latest)
+        }
+      }
     })
-    if (disposed || !snapshot.value) return
-
-    if (!succeeded || missedDuringAction) {
-      // A conflict or an SSE frame received during POST means we should read
-      // authoritative state. Never overwrite an SSE frame received during GET.
-      const versionAtStart = streamVersion
-      const latest = await $fetch<PokerSnapshot>(url).catch(() => null)
-      if (!disposed && snapshot.value && latest && streamVersion === versionAtStart)
-        snapshot.value = latest
-    }
   }
   return { snapshot, busy, error, connection, action }
 }

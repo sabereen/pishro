@@ -33,8 +33,9 @@ export function subscribePokerSession(
 
 function notify(listeners: Set<Listener> | undefined) {
   if (!listeners) return
-  // A listener should not prevent other clients from receiving a notification.
-  for (const listener of [...listeners]) {
+  // A notification targets the listeners present when delivery starts.
+  const subscribers = [...listeners]
+  for (const listener of subscribers) {
     try {
       listener()
     } catch (cause) {

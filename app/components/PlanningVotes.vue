@@ -428,9 +428,9 @@ function leave() {
         >
           <div
             v-for="metric in [
-              { label: 'میانه', value: statistics.median },
+              { label: 'میانه', value: statistics.median, primary: false },
               { label: 'میانگین', value: statistics.average, primary: true },
-              { label: 'دامنه اختلاف', value: statistics.range },
+              { label: 'دامنه اختلاف', value: statistics.range, primary: false },
             ]"
             :key="metric.label"
             class="rounded-lg px-1 py-1.5 sm:py-2"
