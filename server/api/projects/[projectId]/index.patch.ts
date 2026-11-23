@@ -5,6 +5,7 @@ import { lockProject } from '../../../services/projects'
 import { requireProject } from '../../../utils/auth'
 import { useDatabase } from '../../../utils/database'
 import { integerInput, objectBody, textInput } from '../../../utils/validation'
+import { publishProjectPokerSessions } from '../../../utils/poker-events'
 
 export default defineEventHandler(async (event) => {
   const { projectId, user } = await requireProject(event, true)
@@ -31,7 +32,7 @@ export default defineEventHandler(async (event) => {
   const repository = textInput(settings.repository, 220, false)
   if (repository && !/^[\w.-]+\/[\w.-]+$/.test(repository))
     throw createError({ statusCode: 400, message: 'مخزن را به شکل owner/repository وارد کنید.' })
-  await useDatabase().transaction(async (tx) => {
+  const cardsChanged = await useDatabase().transaction(async (tx) => {
     const project = await lockProject(tx, projectId, user.id, true)
     await tx
       .update(projects)
@@ -43,7 +44,10 @@ export default defineEventHandler(async (event) => {
         .update(pokerSessions)
         .set({ cards, revision: sql`${pokerSessions.revision} + 1` })
         .where(and(eq(pokerSessions.projectId, projectId), ne(pokerSessions.status, 'finalized')))
+      return true
     }
+    return false
   })
+  if (cardsChanged) publishProjectPokerSessions(projectId)
   return { ok: true }
 })
